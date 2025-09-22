@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xenophile</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Xenophile</h1>
+        <p>A game of skill creation</p>
+    </header>
+    <main>
+        <div class="toolbar">
+            <button id="add-skill-btn">Add New Skill</button>
+        </div>
+        <div id="skill-tree-container">
+            <!-- Skills will be rendered here -->
+        </div>
+    </main>
+
+    <!-- Add Skill Modal -->
+    <div id="add-skill-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h2>Create a New Skill</h2>
+            <form id="add-skill-form">
+                <div class="form-group">
+                    <label for="skill-name">Skill Name:</label>
+                    <input type="text" id="skill-name" name="skill-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="skill-description">Description:</label>
+                    <textarea id="skill-description" name="skill-description" rows="3" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="is-basic-skill">
+                        This is a Basic Skill (no prerequisites)
+                    </label>
+                </div>
+                <div id="prerequisites-container">
+                    <div class="form-group">
+                        <label for="prerequisite1">Prerequisite 1:</label>
+                        <select id="prerequisite1" name="prerequisite1">
+                            <option value="">None</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="prerequisite2">Prerequisite 2:</label>
+                        <select id="prerequisite2" name="prerequisite2">
+                            <option value="">None</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit">Create Skill</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
