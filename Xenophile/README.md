@@ -13,3 +13,14 @@ Xenophile is a tool that allows you to create skills and link them together in a
 - [ ] A "discovery" mode where you can only see skills you have the prerequisites for.
 - [ ] More complex prerequisite rules (e.g., more than 2, OR conditions).
 - [ ] Sharing skill trees with others.
+
+---
+
+## Changelog
+
+**2025-09-30:**
+- **Full CRUD Functionality:** Added the ability to create, edit, and delete skills and faculties.
+- **Sorting Views:** Implemented "Alphabetical" and "Tree" view sorting options to organize the skill tree.
+- **Color-Coding:** Skills and Faculties are now visually distinguished by color.
+- **New Item Type:** Added "Faculties" as a new type of base item that can be used as prerequisites.
+- **Expanded Default Data:** Included two new skill trees ("Barrel Roll" and "Oral Dissertation") to showcase the new features.
