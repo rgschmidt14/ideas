@@ -1,0 +1,97 @@
+/* --- Tree View Specific Styles --- */
+
+/* The main container for all the trees */
+.tree-container {
+    display: flex;
+    flex-direction: column; /* Each tree will be in its own row */
+    align-items: flex-start; /* Align trees to the left */
+    gap: 4rem; /* Space between different trees */
+    padding: 2rem;
+    overflow-x: auto; /* Allow horizontal scrolling if trees are wide */
+}
+
+/* A container for a single, complete tree (from root to leaves) */
+.tree-root {
+    display: inline-flex;
+    flex-direction: column; /* Stack multiple root nodes vertically */
+    align-items: flex-start; /* Align nodes to the left */
+    gap: 1rem; /* Add space between root nodes */
+}
+
+/* A group containing a single node and all its direct children */
+.tree-node-group {
+    display: flex;
+    flex-direction: row; /* Parent and children are laid out horizontally */
+    align-items: center; /* Vertically align parent card with the group of children */
+    position: relative; /* For connector lines */
+}
+
+/* The container for the skill card itself */
+.tree-node {
+    flex-shrink: 0; /* Prevent skill cards from shrinking */
+}
+
+/* The container for all children of a node */
+.tree-children {
+    display: flex;
+    flex-direction: column; /* Children are stacked vertically */
+    justify-content: center; /* Center children vertically relative to the parent */
+    margin-left: 50px; /* Space between parent and children */
+    position: relative; /* For connector lines */
+}
+
+/* Hide children when collapsed */
+.tree-children.collapsed {
+    display: none;
+}
+
+
+/* --- SVG and Connector Lines --- */
+svg.connector-lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allows clicking through the SVG layer */
+    z-index: 0; /* Behind the skill cards */
+}
+
+/* --- Toggle Button --- */
+.skill-card {
+    position: relative; /* Needed for positioning the toggle button */
+    z-index: 1; /* Ensure cards are on top of lines */
+    background-color: var(--card-bg-color); /* Ensure background is not transparent */
+}
+
+.toggle-children {
+    position: absolute;
+    top: 50%;
+    right: -12px; /* Position just outside the card's right edge */
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1;
+    z-index: 2; /* Make sure button is on top */
+}
+
+.toggle-children::before {
+    display: block;
+}
+
+.toggle-children.collapsed::before {
+    content: '+';
+}
+
+.toggle-children:not(.collapsed)::before {
+    content: '−'; /* Using a proper minus sign */
+}
