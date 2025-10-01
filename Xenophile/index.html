@@ -13,31 +13,43 @@
     </header>
     <main>
         <div class="toolbar">
-            <button id="add-skill-btn">Add New Skill</button>
+            <div class="view-switcher">
+                <button id="view-alpha-btn" class="view-btn active">Alphabetical</button>
+                <button id="view-tree-btn" class="view-btn">Tree</button>
+            </div>
+            <button id="add-skill-btn">Add New Item</button>
         </div>
         <div id="skill-tree-container">
             <!-- Skills will be rendered here -->
         </div>
     </main>
 
-    <!-- Add Skill Modal -->
-    <div id="add-skill-modal" class="modal" style="display: none;">
+    <!-- Add/Edit Modal -->
+    <div id="add-edit-modal" class="modal" style="display: none;">
         <div class="modal-content">
             <span class="close-btn">&times;</span>
-            <h2>Create a New Skill</h2>
-            <form id="add-skill-form">
+            <h2 id="modal-title">Create New Item</h2>
+            <form id="add-edit-form">
+                <input type="hidden" id="edit-item-id" name="edit-item-id">
                 <div class="form-group">
-                    <label for="skill-name">Skill Name:</label>
-                    <input type="text" id="skill-name" name="skill-name" required>
+                    <label for="item-name">Name:</label>
+                    <input type="text" id="item-name" name="item-name" required>
                 </div>
                 <div class="form-group">
-                    <label for="skill-description">Description:</label>
-                    <textarea id="skill-description" name="skill-description" rows="3" required></textarea>
+                    <label for="item-description">Description:</label>
+                    <textarea id="item-description" name="item-description" rows="3" required></textarea>
+                </div>
+                 <div class="form-group">
+                    <label for="item-type">Type:</label>
+                    <select id="item-type" name="item-type">
+                        <option value="skill">Skill</option>
+                        <option value="faculty">Faculty</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>
-                        <input type="checkbox" id="is-basic-skill">
-                        This is a Basic Skill (no prerequisites)
+                        <input type="checkbox" id="is-tier-zero">
+                        This is a Tier 0 Item (no prerequisites)
                     </label>
                 </div>
                 <div id="prerequisites-container">
@@ -54,7 +66,7 @@
                         </select>
                     </div>
                 </div>
-                <button type="submit">Create Skill</button>
+                <button type="submit" id="save-btn">Save</button>
             </form>
         </div>
     </div>
