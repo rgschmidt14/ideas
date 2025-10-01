@@ -1,3 +1,10 @@
+:root {
+    --skill-color: #007bff; /* Blue */
+    --skill-color-dark: #0056b3;
+    --faculty-color: #28a745; /* Green */
+    --faculty-color-dark: #1e7e34;
+}
+
 body {
     font-family: sans-serif;
     background-color: #f0f0f0;
@@ -20,7 +27,35 @@ main {
 
 .toolbar {
     margin-bottom: 1rem;
-    text-align: right;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.view-switcher {
+    display: inline-block;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.view-btn {
+    background: #f0f0f0;
+    color: #333;
+    border: none;
+    padding: 0.8rem 1.2rem;
+    cursor: pointer;
+    font-size: 1rem;
+    border-left: 1px solid #ccc;
+}
+
+.view-btn:first-child {
+    border-left: none;
+}
+
+.view-btn.active {
+    background: #007bff;
+    color: white;
 }
 
 #add-skill-btn {
@@ -149,16 +184,32 @@ button[type="submit"]:hover {
 .skill-card {
     background: #fff;
     border: 1px solid #ddd;
-    border-left: 5px solid #007bff;
+    border-left: 5px solid var(--skill-color); /* Default color */
     border-radius: 5px;
     padding: 1rem;
     margin-bottom: 1rem;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
+.skill-card[data-type="skill"] {
+    border-left-color: var(--skill-color);
+}
+
+.skill-card[data-type="skill"] h3 {
+    color: var(--skill-color-dark);
+}
+
+.skill-card[data-type="faculty"] {
+    border-left-color: var(--faculty-color);
+}
+
+.skill-card[data-type="faculty"] h3 {
+    color: var(--faculty-color-dark);
+}
+
+
 .skill-card h3 {
     margin-top: 0;
-    color: #0056b3;
 }
 
 .skill-type {
@@ -186,4 +237,39 @@ button[type="submit"]:hover {
 
 .prerequisites-list li {
     color: #555;
+}
+
+/* Card Controls */
+.card-controls {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.card-controls button {
+    border: none;
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: white;
+}
+
+.edit-btn {
+    background-color: #ffc107; /* Amber */
+}
+
+.edit-btn:hover {
+    background-color: #e0a800;
+}
+
+.delete-btn {
+    background-color: #dc3545; /* Red */
+}
+
+.delete-btn:hover {
+    background-color: #c82333;
 }

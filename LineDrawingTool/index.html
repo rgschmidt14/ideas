@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Line Drawing Tool</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-statistics/7.7.0/simple-statistics.min.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Line Drawing Tool</h1>
+    </header>
+    <!-- Main Content -->
+    <main class="main-content">
+
+        <!-- Graph -->
+        <div class="graph graph-block graphContainer">
+            <!-- Graph rendering library will operate here -->
+        </div>
+
+        <!-- Points Table -->
+        <table class="points-table">
+            <thead>
+                <tr>
+                    <th>X-Coordinate</th>
+                    <th>Y-Coordinate</th>
+                    <th>Action</th> <!-- For delete action -->
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Points will be dynamically added here with the delete button -->
+            </tbody>
+        </table>
+        <button id="add-point">Add Point</button>
+        <button id="draw-mode">Draw Mode</button>
+
+        <!-- Results -->
+        <div class="results">
+            <h2>Results</h2>
+            <p class="equation">Equation: <span></span></p>
+            <p class="accuracy">Accuracy: <span></span></p>
+            <button id="undo-action">Undo</button> <!-- Undo action -->
+            <button id="redo-action">Redo</button>
+            <button id="sort-x-coordinates">Sort X</button> <!-- Sorting points based on x-coordinate -->
+        </div>
+
+        <!-- Graph Settings -->
+        <div class="settings">
+            <h2>Settings</h2>
+
+            <!-- Name the graph data -->
+            <label for="graph-name">Graph Name:
+            <input type="text" id="graph-name">
+            </label>
+
+
+            <div class="axis-settings">
+                <label for="x-axis-min">X-Axis Min:
+                <input type="number" id="x-axis-min">
+                </label>
+
+                <label for="x-axis-max">X-Axis Max:
+                <input type="number" id="x-axis-max">
+                </label>
+            </div>
+
+            <div class="axis-settings">
+                <label for="y-axis-min">Y-Axis Min:
+                <input type="number" id="y-axis-min">
+                </label>
+
+                <label for="y-axis-max">Y-Axis Max:
+                <input type="number" id="y-axis-max">
+                </label>
+            </div>
+
+
+
+            <label for="xInterval">X-Interval:
+            <input type="text" id="xInterval" placeholder="X-Interval">
+            </label>
+
+            <label for="yInterval">Y-Interval:
+            <input type="text" id="yInterval" placeholder="Y-Interval">
+            </label>
+
+            <label for="bend-count">Number of Bends:
+            <input type="range" id="bend-count" min="1" max="5" step="1" value="1">
+            </label>
+
+            <label for="point-color">Point Color:</label>
+            <input type="color" id="point-color">
+
+            <label for="line-color">Line Color:</label>
+            <input type="color" id="line-color">
+
+            <!-- UI Element Size -->
+            <label for="ui-size">UI Element Size:</label>
+            <select id="ui-size">
+                <option value="tiny">Tiny</option>
+                <option value="small" selected>Small</option>
+                <option value="medium">Medium</option>
+                <option value="large">Large</option>
+            </select>
+
+            <label for="line-thickness">Line Thickness:</label>
+            <input type="range" id="line-thickness" min="1" max="5" step="1" value="3"> <!-- Adjustable as per needs -->
+
+            <button id="save-csv">Save as CSV</button> <!-- Button to save graph data as CSV -->
+
+        </div>
+
+    </main>
+    <footer>
+        <p>Created by Jules</p>
+    </footer>
+    <script src="script.js"></script>
+</body>
+</html>

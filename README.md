@@ -15,3 +15,14 @@ To keep our projects organized, please follow these simple steps when adding a n
 4.  **Include a Project `README.md`:** It's essential to include a `README.md` file inside your project's folder. A good `README.md` makes it easier for others to understand and use your work. Please use the `Xenophile/README.md` as a template. Your `README.md` should include:
     *   A **Description** of what your project does.
     *   A list of **Future Ideas** with checkboxes to track progress.
+
+---
+
+## Changelog
+
+**2025-09-30:**
+- **Full CRUD Functionality:** Added the ability to create, edit, and delete skills and faculties.
+- **Sorting Views:** Implemented "Alphabetical" and "Tree" view sorting options to organize the skill tree.
+- **Color-Coding:** Skills and Faculties are now visually distinguished by color.
+- **New Item Type:** Added "Faculties" as a new type of base item that can be used as prerequisites.
+- **Expanded Default Data:** Included two new skill trees ("Barrel Roll" and "Oral Dissertation") to showcase the new features.
