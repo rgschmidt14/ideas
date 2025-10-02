@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pavement Temperature Checker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>🐾 Pavement Paw-tection! 🐾</h1>
+    <p>Is the pavement safe for your furry friend's paws? Let's find out!</p>
+
+    <div class="container">
+        <div class="input-section">
+            <input type="text" id="locationInput" placeholder="Enter a city">
+            <button id="checkTempBtn">Check Temperature</button>
+            <button id="useLocationBtn">Use My Location</button>
+        </div>
+
+        <div id="results" class="results-section">
+            <h2>Temperature Estimation</h2>
+            <div id="cement-temp"></div>
+            <div id="asphalt-temp"></div>
+            <div id="safety-message"><span id="paw-icon">🐾</span> <span id="safety-text"></span></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
