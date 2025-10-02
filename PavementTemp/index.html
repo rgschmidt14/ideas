@@ -16,13 +16,27 @@
             <button id="checkTempBtn">Check Temperature</button>
             <button id="useLocationBtn">Use My Location</button>
         </div>
-
+        <div id="suggestions-container"></div>
         <div id="results" class="results-section">
             <h2>Temperature Estimation</h2>
+            <p id="last-updated"></p>
             <div id="cement-temp"></div>
             <div id="asphalt-temp"></div>
             <div id="safety-message"><span id="paw-icon">🐾</span> <span id="safety-text"></span></div>
         </div>
+    </div>
+
+    <div class="info-container">
+        <h2>How it Works (The "Gee-Wiz" Info)</h2>
+        <p>This tool estimates pavement temperature based on a weighted average of the air temperature over the last 10 hours, giving more significance to recent temperatures. Pavement, especially dark asphalt, absorbs and retains a lot of heat from the sun.</p>
+        <p><strong>Why the difference?</strong> A simple rule of thumb is that in direct sunlight, asphalt can be 40-60°F hotter than the air temperature. This tool uses a slightly more conservative estimate to be on the safe side.</p>
+        <h3>Safety Thresholds:</h3>
+        <ul>
+            <li><strong>< 110°F (43°C):</strong> Generally safe for paws and feet.</li>
+            <li><strong>110°F - 130°F (43°C - 54°C):</strong> Caution advised. The pavement can be uncomfortable. Use the "7-second rule": if you can't comfortably hold the back of your hand on the surface for 7 seconds, it's too hot for paws.</li>
+            <li><strong>> 130°F (54°C):</strong> DANGEROUS. Pavement at this temperature can cause burns in as little as 60 seconds. Avoid walking pets on pavement.</li>
+        </ul>
+        <p class="sources">Sources: <a href="https://www.fourpawsusa.org/our-stories/publications-guides/hot-asphalt-a-danger-to-your-dogs-paws" target="_blank">Four Paws USA</a>, <a href="https://www.thesprucepets.com/what-you-need-to-know-about-walking-your-dog-on-hot-pavement-4766583" target="_blank">The Spruce Pets</a></p>
     </div>
 
     <script src="script.js"></script>

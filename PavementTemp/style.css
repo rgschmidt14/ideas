@@ -74,3 +74,48 @@ h1 {
 .suggestion-item:hover {
     background-color: #f1f1f1;
 }
+
+.info-container {
+    margin-top: 2em;
+    padding: 1.5em;
+    background-color: #fafafa;
+    border-radius: 10px;
+    text-align: left;
+    max-width: 500px;
+    margin: 2em auto;
+    border: 1px solid #eee;
+}
+
+.info-container h2 {
+    color: #ff6347;
+    text-align: center;
+}
+
+.info-container h3 {
+    color: #333;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.info-container ul {
+    list-style-type: '🐾';
+    padding-left: 20px;
+}
+
+.sources {
+    font-size: 0.8em;
+    color: #666;
+    text-align: center;
+    margin-top: 1em;
+}
+
+.celsius {
+    color: #888;
+    font-size: 0.9em;
+}
+
+#last-updated {
+    font-size: 0.8em;
+    color: #999;
+    margin-bottom: 1em;
+}
