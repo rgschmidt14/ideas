@@ -8,22 +8,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const pawIcon = document.getElementById('paw-icon');
     const safetyText = document.getElementById('safety-text');
     const lastUpdatedSpan = document.getElementById('last-updated');
-    const lastLocation = localStorage.getItem('lastLocation');
+    const lastLocationData = localStorage.getItem('lastLocation');
     const suggestionsContainer = document.createElement('div');
     suggestionsContainer.id = 'suggestions-container';
     locationInput.parentNode.insertBefore(suggestionsContainer, locationInput.nextSibling);
 
     // Auto-load weather for last location
-    if (lastLocation) {
-        locationInput.value = lastLocation;
-        getWeatherByCity(lastLocation);
+    if (lastLocationData) {
+        const location = JSON.parse(lastLocationData);
+        locationInput.value = location.name;
+        getWeatherByCoords(location.latitude, location.longitude);
     }
 
     checkTempBtn.addEventListener('click', () => {
-        const location = locationInput.value;
-        if (location) {
-            localStorage.setItem('lastLocation', location);
-            getWeatherByCity(location);
+        const locationName = locationInput.value;
+        if (locationName) {
+            getWeatherByCity(locationName);
         } else {
             alert('Please enter a location.');
         }
@@ -34,10 +34,23 @@ document.addEventListener('DOMContentLoaded', () => {
             navigator.geolocation.getCurrentPosition(position => {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
-                // Clear the input field when using geolocation
-                locationInput.value = "Current Location";
-                localStorage.removeItem('lastLocation'); // Or set to a special value
-                getWeatherByCoords(lat, lon);
+                // Fetch location name from coordinates
+                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const locationName = data.display_name || "Current Location";
+                        locationInput.value = locationName;
+                        const location = { name: locationName, latitude: lat, longitude: lon };
+                        localStorage.setItem('lastLocation', JSON.stringify(location));
+                        getWeatherByCoords(lat, lon);
+                    })
+                    .catch(() => {
+                         // Fallback if reverse geocoding fails
+                        locationInput.value = "Current Location";
+                        const location = { name: "Current Location", latitude: lat, longitude: lon };
+                        localStorage.setItem('lastLocation', JSON.stringify(location));
+                        getWeatherByCoords(lat, lon);
+                    });
             }, () => {
                 alert('Unable to retrieve your location.');
             });
@@ -64,8 +77,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const locationName = `${location.name}, ${location.admin1 || ''} ${location.country_code}`;
                         suggestionDiv.textContent = locationName;
                         suggestionDiv.onclick = () => {
+                            const locationData = {
+                                name: locationName,
+                                latitude: location.latitude,
+                                longitude: location.longitude
+                            };
                             locationInput.value = locationName;
-                            localStorage.setItem('lastLocation', locationName);
+                            localStorage.setItem('lastLocation', JSON.stringify(locationData));
                             suggestionsContainer.innerHTML = '';
                             getWeatherByCoords(location.latitude, location.longitude);
                         };
@@ -80,8 +98,15 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(response => response.json())
             .then(data => {
                 if (data.results && data.results.length > 0) {
-                    const location = data.results[0];
-                    getWeatherByCoords(location.latitude, location.longitude);
+                    const locationResult = data.results[0];
+                    const locationData = {
+                        name: `${locationResult.name}, ${locationResult.admin1 || ''} ${locationResult.country_code}`,
+                        latitude: locationResult.latitude,
+                        longitude: locationResult.longitude
+                    };
+                    localStorage.setItem('lastLocation', JSON.stringify(locationData));
+                    locationInput.value = locationData.name;
+                    getWeatherByCoords(locationResult.latitude, locationResult.longitude);
                 } else {
                     alert('Could not find location. Please try again.');
                 }
