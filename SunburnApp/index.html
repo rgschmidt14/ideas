@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sunburn Risk Checker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>☀️ Sunburn Safety! ☀️</h1>
+    <p>How high is the UV index? Let's find out!</p>
+
+    <div class="container">
+        <div class="input-section">
+            <input type="text" id="locationInput" placeholder="Enter a city">
+            <button id="checkUVBtn">Check UV Index</button>
+            <button id="useLocationBtn">Use My Location</button>
+        </div>
+        <div id="suggestions-container"></div>
+        <div id="results" class="results-section">
+            <h2>UV Index Estimation</h2>
+            <p id="last-updated"></p>
+            <div id="uv-index"></div>
+            <div id="safety-message"><span id="sun-icon">☀️</span> <span id="safety-text"></span></div>
+        </div>
+    </div>
+
+    <div class="info-container">
+        <h2>How it Works (The "Gee-Wiz" Info)</h2>
+        <p>This tool fetches the current UV index for your location. The UV index is a measure of the strength of sunburn-producing ultraviolet (UV) radiation.</p>
+        <h3>UV Index Scale:</h3>
+        <ul>
+            <li><strong>0-2 (Low):</strong> No protection needed. You can safely stay outside.</li>
+            <li><strong>3-5 (Moderate):</strong> Protection needed. Seek shade during late morning through mid-afternoon.</li>
+            <li><strong>6-7 (High):</strong> Protection essential. Wear a hat and sunglasses, use sunscreen.</li>
+            <li><strong>8-10 (Very High):</strong> Extra protection needed. Be careful outside, especially during peak sun hours.</li>
+            <li><strong>11+ (Extreme):</strong> Stay inside! Skin can burn in minutes.</li>
+        </ul>
+        <p><strong>Disclaimer:</strong> This tool provides an estimate for informational purposes only. Always use your best judgment and take appropriate precautions when outdoors.</p>
+        <p class="sources">Source: <a href="https://www.epa.gov/sunsafety/uv-index-scale-0" target="_blank">U.S. Environmental Protection Agency</a></p>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
