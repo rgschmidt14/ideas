@@ -7,14 +7,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const safetyMessageDiv = document.getElementById('safety-message');
     const pawIcon = document.getElementById('paw-icon');
     const safetyText = document.getElementById('safety-text');
+    const lastUpdatedSpan = document.getElementById('last-updated');
     const lastLocation = localStorage.getItem('lastLocation');
     const suggestionsContainer = document.createElement('div');
     suggestionsContainer.id = 'suggestions-container';
     locationInput.parentNode.insertBefore(suggestionsContainer, locationInput.nextSibling);
 
-
-    if(lastLocation) {
+    // Auto-load weather for last location
+    if (lastLocation) {
         locationInput.value = lastLocation;
+        getWeatherByCity(lastLocation);
     }
 
     checkTempBtn.addEventListener('click', () => {
@@ -32,6 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
             navigator.geolocation.getCurrentPosition(position => {
                 const lat = position.coords.latitude;
                 const lon = position.coords.longitude;
+                // Clear the input field when using geolocation
+                locationInput.value = "Current Location";
+                localStorage.removeItem('lastLocation'); // Or set to a special value
                 getWeatherByCoords(lat, lon);
             }, () => {
                 alert('Unable to retrieve your location.');
@@ -41,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    locationInput.addEventListener('keyup', () => {
+    locationInput.addEventListener('input', () => {
         const query = locationInput.value;
         if (query.length < 3) {
             suggestionsContainer.innerHTML = '';
@@ -56,9 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     data.results.forEach(location => {
                         const suggestionDiv = document.createElement('div');
                         suggestionDiv.classList.add('suggestion-item');
-                        suggestionDiv.textContent = `${location.name}, ${location.admin1 || ''} ${location.country_code}`;
+                        const locationName = `${location.name}, ${location.admin1 || ''} ${location.country_code}`;
+                        suggestionDiv.textContent = locationName;
                         suggestionDiv.onclick = () => {
-                            locationInput.value = location.name;
+                            locationInput.value = locationName;
+                            localStorage.setItem('lastLocation', locationName);
                             suggestionsContainer.innerHTML = '';
                             getWeatherByCoords(location.latitude, location.longitude);
                         };
@@ -67,7 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
     });
-
 
     function getWeatherByCity(city) {
         fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${city}&count=1`)
@@ -89,9 +95,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function getWeatherByCoords(lat, lon) {
         cementTempDiv.innerHTML = 'Calculating...';
         asphaltTempDiv.innerHTML = '';
-        safetyMessageDiv.style.color = '#333';
         safetyText.textContent = '';
         pawIcon.style.color = '#333';
+        lastUpdatedSpan.textContent = '';
+
 
         const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m&past_hours=10`;
 
@@ -104,12 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const weightedSum = temps.reduce((sum, temp, i) => sum + (temp * weights[i]), 0);
                     const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
                     const weightedAvgC = weightedSum / totalWeight;
-                    const weightedAvgF = (weightedAvgC * 9/5) + 32;
 
-                    const asphaltTempF = weightedAvgF + 50;
-                    const cementTempF = weightedAvgF + 40;
-
-                    displayResults(cementTempF, asphaltTempF);
+                    displayResults(weightedAvgC);
                 } else {
                     alert('Could not retrieve historical weather data.');
                 }
@@ -120,17 +123,24 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    function displayResults(cementTemp, asphaltTemp) {
-        cementTempDiv.innerHTML = `Estimated Cement Temperature: <strong>${cementTemp.toFixed(1)}°F</strong>`;
-        asphaltTempDiv.innerHTML = `Estimated Asphalt Temperature: <strong>${asphaltTemp.toFixed(1)}°F</strong>`;
+    function displayResults(airTempC) {
+        const airTempF = (airTempC * 9/5) + 32;
+
+        const asphaltTempF = airTempF + 50;
+        const cementTempF = airTempF + 40;
+        const asphaltTempC = (asphaltTempF - 32) * 5/9;
+        const cementTempC = (cementTempF - 32) * 5/9;
+
+        cementTempDiv.innerHTML = `Estimated Cement Temperature: <strong>${cementTempF.toFixed(1)}°F</strong> <span class="celsius">(${cementTempC.toFixed(1)}°C)</span>`;
+        asphaltTempDiv.innerHTML = `Estimated Asphalt Temperature: <strong>${asphaltTempF.toFixed(1)}°F</strong> <span class="celsius">(${asphaltTempC.toFixed(1)}°C)</span>`;
 
         let message = '';
         let color = '';
 
-        if (asphaltTemp >= 130) {
+        if (asphaltTempF >= 130) {
             message = "DANGER: Pavement is too hot for paws! Avoid walking your dog.";
             color = 'red';
-        } else if (asphaltTemp >= 110) {
+        } else if (asphaltTempF >= 110) {
             message = "CAUTION: Pavement might be uncomfortable. Check with the 7-second rule.";
             color = 'orange';
         } else {
@@ -141,5 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
         safetyText.textContent = message;
         safetyMessageDiv.style.color = color;
         pawIcon.style.color = color;
+
+        const now = new Date();
+        lastUpdatedSpan.textContent = `Last updated: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
     }
 });
