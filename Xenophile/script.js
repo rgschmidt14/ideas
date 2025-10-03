@@ -20,29 +20,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const treeControls = document.querySelector('.tree-controls');
     const collapseAllBtn = document.getElementById('collapse-all-btn');
     const expandAllBtn = document.getElementById('expand-all-btn');
+    const importBtn = document.getElementById('import-btn');
+    const exportBtn = document.getElementById('export-btn');
+    const importFileInput = document.getElementById('import-file-input');
+    const discoveryModeToggle = document.getElementById('discovery-mode-toggle');
 
 
     // --- Game Data & Constants ---
     const STORAGE_KEY = 'Xenophile';
     const VIEW_MODE_KEY = 'XenophileViewMode';
+    const DISCOVERY_MODE_KEY = 'XenophileDiscoveryMode';
     let gameData = {
         skills: [],
         faculties: [],
     };
     let currentView = 'alpha'; // 'alpha', 'v-tree', or 'h-tree'
+    let discoveryModeEnabled = false;
 
     // --- Data Functions ---
     function saveData() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(gameData));
         localStorage.setItem(VIEW_MODE_KEY, currentView);
+        localStorage.setItem(DISCOVERY_MODE_KEY, JSON.stringify(discoveryModeEnabled));
     }
 
     function loadData() {
         const savedData = localStorage.getItem(STORAGE_KEY);
         const savedView = localStorage.getItem(VIEW_MODE_KEY);
+        const savedDiscovery = localStorage.getItem(DISCOVERY_MODE_KEY);
 
         if (savedView) {
             currentView = savedView;
+        }
+        if (savedDiscovery) {
+            discoveryModeEnabled = JSON.parse(savedDiscovery);
+            discoveryModeToggle.checked = discoveryModeEnabled;
         }
 
         if (savedData) {
@@ -221,6 +233,19 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('prereq1-level').value = 1;
         document.getElementById('prereq2-level').value = 1;
         modal.style.display = 'block';
+    }
+
+    function openModalForQuickAdd(prereqId) {
+        openModalForCreate(); // Start with a fresh modal
+        modalTitle.textContent = 'Create New Dependent Item';
+
+        // Pre-select the prerequisite
+        const prereqItem = getItemById(prereqId);
+        if(prereqItem) {
+            prereq1Select.value = prereqId;
+            isTierZeroCheckbox.checked = false;
+            prerequisitesContainer.style.display = 'block';
+        }
     }
 
     function openModalForEdit(itemId) {
@@ -581,6 +606,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+function arePrerequisitesMet(item) {
+    if (!item.prerequisites || item.prerequisites.length === 0) {
+        return true; // No prerequisites, always considered met.
+    }
+    return item.prerequisites.every(prereqObj => {
+        const prereqItem = getItemById(prereqObj.id);
+        // If a prerequisite item doesn't exist for some reason, fail open (treat as met)
+        if (!prereqItem) return true;
+        // Check if the user's level for the prerequisite item meets or exceeds the required level
+        return (prereqItem.level || 0) >= prereqObj.requiredLevel;
+    });
+}
+
 function changeItemLevel(itemId, delta) {
     const item = getItemById(itemId);
     if (!item) return;
@@ -599,6 +637,17 @@ function changeItemLevel(itemId, delta) {
         card.className = 'skill-card';
         card.dataset.id = item.id;
         card.dataset.type = item.type;
+
+        // --- Discovery Mode Logic ---
+        const isDiscovered = arePrerequisitesMet(item);
+        if (discoveryModeEnabled && !isDiscovered) {
+            card.classList.add('locked');
+            const cardTitle = document.createElement('h3');
+            cardTitle.textContent = '???';
+            card.appendChild(cardTitle);
+            return card; // Return the locked card
+        }
+
 
     const titleContainer = document.createElement('div');
     titleContainer.className = 'card-title-container';
@@ -648,6 +697,12 @@ function changeItemLevel(itemId, delta) {
         const cardControls = document.createElement('div');
         cardControls.className = 'card-controls';
 
+        const quickAddBtn = document.createElement('button');
+        quickAddBtn.textContent = '+';
+        quickAddBtn.title = 'Create a new item with this as a prerequisite';
+        quickAddBtn.className = 'quick-add-btn';
+        quickAddBtn.onclick = () => openModalForQuickAdd(item.id);
+
         const editBtn = document.createElement('button');
         editBtn.textContent = 'Edit';
         editBtn.className = 'edit-btn';
@@ -662,6 +717,7 @@ function changeItemLevel(itemId, delta) {
             }
         };
 
+        cardControls.appendChild(quickAddBtn);
         cardControls.appendChild(editBtn);
         cardControls.appendChild(deleteBtn);
 
@@ -824,6 +880,73 @@ function changeItemLevel(itemId, delta) {
             skillTreeContainer.appendChild(tierColumn);
         }
     }
+
+    // --- Import/Export Logic ---
+    function exportData() {
+        const dataStr = JSON.stringify(gameData, null, 2); // Pretty print JSON
+        const dataBlob = new Blob([dataStr], {type: "application/json"});
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.download = `xenophile_backup_${timestamp}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) {
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            if (confirm('Are you sure you want to import this file? This will overwrite all your current data.')) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    // Basic validation
+                    if (importedData && importedData.skills !== undefined && importedData.faculties !== undefined) {
+                        gameData = importedData;
+                        // Run migration logic on imported data just in case it's an old format
+                        const allItems = [...gameData.skills, ...gameData.faculties];
+                        allItems.forEach(item => {
+                            if (item.level === undefined) item.level = 0;
+                            if (item.levelDescriptions === undefined) item.levelDescriptions = { '1': '', '2': '', '3': '', '4': '', '5': '' };
+                            if (item.prerequisites && item.prerequisites.length > 0 && typeof item.prerequisites[0] === 'string') {
+                                item.prerequisites = item.prerequisites.map(prereqId => ({ id: prereqId, requiredLevel: 1 }));
+                            }
+                        });
+                        updateAllDependentTiers();
+                        saveData();
+                        setView(currentView);
+                        alert('Data imported successfully!');
+                    } else {
+                        alert('Invalid data file. Make sure it is a valid Xenophile export.');
+                    }
+                } catch (error) {
+                    alert('Error reading or parsing the file. Please ensure it is a valid JSON file.');
+                    console.error("Import error:", error);
+                }
+            }
+            // Reset file input so the same file can be loaded again
+            importFileInput.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    exportBtn.addEventListener('click', exportData);
+    importBtn.addEventListener('click', () => importFileInput.click());
+    importFileInput.addEventListener('change', importData);
+
+    discoveryModeToggle.addEventListener('change', () => {
+        discoveryModeEnabled = discoveryModeToggle.checked;
+        saveData();
+        setView(currentView); // Re-render the view with the new mode
+    });
+
 
     // --- Initialization ---
     function init() {

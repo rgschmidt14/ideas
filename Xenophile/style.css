@@ -7,7 +7,7 @@
 
 body {
     font-family: sans-serif;
-    background-color: #f0f0f0;
+    background-color: #f0f2f5; /* A subtle, modern light gray */
     color: #333;
     line-height: 1.6;
 }
@@ -17,12 +17,11 @@ header {
     color: #fff;
     padding: 1rem 0;
     text-align: center;
+    margin-bottom: 1rem; /* Add some space below the header */
 }
 
 main {
-    padding: 1rem;
-    max-width: 1200px;
-    margin: 0 auto;
+    padding: 0 1rem 1rem 1rem; /* Adjust padding for full-width */
 }
 
 .toolbar {
@@ -30,6 +29,26 @@ main {
     display: flex;
     justify-content: space-between;
     align-items: center;
+}
+
+.toolbar-group-right {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.toolbar-btn {
+    background: #6c757d; /* Gray */
+    color: white;
+    border: none;
+    padding: 0.8rem 1.2rem;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.toolbar-btn:hover {
+    background: #5a6268;
 }
 
 .view-switcher {
@@ -206,17 +225,19 @@ button[type="submit"]:hover {
     flex-direction: row;
     align-items: flex-start;
     overflow-x: auto;
-    background: #e0e0e0;
+    background: #ffffff; /* A clean white background for the main content */
     padding: 1rem;
-    min-height: 400px;
+    min-height: 60vh; /* Give it some vertical height */
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
 .tier-column {
     flex: 0 0 300px; /* Flex-shrink, flex-grow, basis */
     margin-right: 1rem;
     padding: 0 1rem;
-    border-right: 1px solid #c5c5c5;
-    background-color: #f7f7f7;
+    border-right: 1px solid #e9ecef; /* Lighter border color */
+    background-color: transparent; /* Inherit from the container */
     height: 100%;
 }
 
@@ -227,12 +248,12 @@ button[type="submit"]:hover {
 .tier-title {
     text-align: center;
     color: #333;
-    border-bottom: 2px solid #ccc;
+    border-bottom: 2px solid #e9ecef;
     padding-bottom: 0.5rem;
     margin-top: 0;
     position: sticky;
     top: 0;
-    background: #f7f7f7;
+    background: #ffffff; /* Match the container background */
     z-index: 1;
 }
 
@@ -361,4 +382,97 @@ button[type="submit"]:hover {
 
 .delete-btn:hover {
     background-color: #c82333;
+}
+
+.quick-add-btn {
+    background-color: #17a2b8; /* Teal */
+    font-weight: bold;
+}
+
+.quick-add-btn:hover {
+    background-color: #138496;
+}
+
+/* Discovery Mode Toggle Switch */
+.discovery-mode-control {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 1rem;
+}
+
+.discovery-label {
+    font-size: 0.9rem;
+    color: #333; /* Match default body text */
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px; /* smaller */
+    height: 24px; /* smaller */
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 18px; /* smaller */
+    width: 18px; /* smaller */
+    left: 3px; /* adjusted */
+    bottom: 3px; /* adjusted */
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: var(--skill-color);
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px); /* adjusted */
+}
+
+.slider.round {
+    border-radius: 24px; /* smaller */
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+/* Locked Card Style */
+.skill-card.locked {
+    background: #f8f9fa;
+    border-left-color: #6c757d;
+    text-align: center;
+    cursor: not-allowed;
+}
+
+.skill-card.locked h3 {
+    color: #6c757d;
+}
+
+.skill-card.locked .card-controls,
+.skill-card.locked .level-container,
+.skill-card.locked .skill-type,
+.skill-card.locked .prerequisites-list,
+.skill-card.locked > p {
+    display: none;
 }

@@ -1,6 +1,6 @@
 # Xenophile
 
-A game of skill creation and combination.
+Map your life's skill tree.
 
 ## Project Vision
 
@@ -22,13 +22,13 @@ Xenophile is a tool that allows you to create skills and link them together in a
 - [x] **Skill Leveling System:** Implement a 0-5 leveling system for each skill and faculty to track user proficiency. (Done 2025-10-02)
 - [x] **Prerequisite Levels:** Allow specifying the required level of a prerequisite to unlock Level 1 of a new skill (e.g., "Palm Basketball (Level 3)" is needed for "Dunk (Level 1)"). (Done 2025-10-02)
 - [x] **Detailed Level Descriptions:** Add fields in the creation/edit modal for descriptions for each of the 5 proficiency levels. (Done 2025-10-02)
-- [ ] **"Quick Add" Prerequisite:** Add a '+' button next to items in the tree view to open the creation modal with that item pre-populated as a prerequisite.
+- [x] **"Quick Add" Prerequisite:** Add a '+' button next to items in the tree view to open the creation modal with that item pre-populated as a prerequisite. (Done 2025-10-02)
 - [x] **Embedded Links:** Create an easy way to add and display hyperlinks (e.g., to YouTube tutorials or articles) within skill descriptions. (Done 2025-10-02)
+- [x] **Ability to export/import skill trees.** (Done 2025-10-02)
+- [x] **A "discovery" mode** where you can only see skills you have the prerequisites for. (Done 2025-10-02)
 - [ ] **Skill "Pass-Off" System:** Develop a mechanism or checklist to test if a user has learned a skill to a certain level.
-- [ ] Ability to export/import skill trees.
-- [ ] A "discovery" mode where you can only see skills you have the prerequisites for.
-- [ ] More complex prerequisite rules (e.g., more than 2, OR conditions).
-- [ ] Sharing skill trees with others.
+- [ ] **More complex prerequisite rules** (e.g., more than 2, OR conditions).
+- [ ] **Sharing skill trees** with others.
 
 ## AI Suggestions
 
@@ -55,6 +55,12 @@ Here are a few technical suggestions to help bring the vision to life:
 ---
 
 ## Changelog
+
+**2025-10-02 (Evening):**
+- **UI Overhaul:** The application now features a full-width layout to better accommodate large skill trees and has a more modern, consistent design. The subtitle has also been updated to better reflect the project's vision.
+- **"Quick Add" Prerequisite:** A new '+' button has been added to each item card, allowing users to quickly open the creation modal with that item pre-populated as a prerequisite, streamlining the tree-building process.
+- **Import/Export Functionality:** Users can now export their entire skill tree to a JSON file as a backup and import it back into the application, ensuring data persistence and portability.
+- **Discovery Mode:** A new "Discovery Mode" has been added. When enabled, any skill whose prerequisites have not been met to the required level will be "locked," showing only "???" This adds a gamified element of progression and exploration to the skill tree.
 
 **2025-10-02:**
 - **Horizontal & Vertical Tree Views:** The tree view has been split into two distinct modes: a classic top-down "V-Tree" and a new left-to-right "H-Tree" for alternative visualization.
