@@ -19,11 +19,11 @@ Xenophile is a tool that allows you to create skills and link them together in a
 ## Future Ideas (To-Do List)
 
 - [x] Advanced graphical visualization of the skill tree.
-- [ ] **Skill Leveling System:** Implement a 0-5 leveling system for each skill and faculty to track user proficiency.
-- [ ] **Prerequisite Levels:** Allow specifying the required level of a prerequisite to unlock Level 1 of a new skill (e.g., "Palm Basketball (Level 3)" is needed for "Dunk (Level 1)").
-- [ ] **Detailed Level Descriptions:** Add fields in the creation/edit modal for descriptions for each of the 5 proficiency levels.
+- [x] **Skill Leveling System:** Implement a 0-5 leveling system for each skill and faculty to track user proficiency. (Done 2025-10-02)
+- [x] **Prerequisite Levels:** Allow specifying the required level of a prerequisite to unlock Level 1 of a new skill (e.g., "Palm Basketball (Level 3)" is needed for "Dunk (Level 1)"). (Done 2025-10-02)
+- [x] **Detailed Level Descriptions:** Add fields in the creation/edit modal for descriptions for each of the 5 proficiency levels. (Done 2025-10-02)
 - [ ] **"Quick Add" Prerequisite:** Add a '+' button next to items in the tree view to open the creation modal with that item pre-populated as a prerequisite.
-- [ ] **Embedded Links:** Create an easy way to add and display hyperlinks (e.g., to YouTube tutorials or articles) within skill descriptions.
+- [x] **Embedded Links:** Create an easy way to add and display hyperlinks (e.g., to YouTube tutorials or articles) within skill descriptions. (Done 2025-10-02)
 - [ ] **Skill "Pass-Off" System:** Develop a mechanism or checklist to test if a user has learned a skill to a certain level.
 - [ ] Ability to export/import skill trees.
 - [ ] A "discovery" mode where you can only see skills you have the prerequisites for.
@@ -57,6 +57,14 @@ Here are a few technical suggestions to help bring the vision to life:
 ## Changelog
 
 **2025-10-02:**
+- **Horizontal & Vertical Tree Views:** The tree view has been split into two distinct modes: a classic top-down "V-Tree" and a new left-to-right "H-Tree" for alternative visualization.
+- **Skill Leveling System:** A comprehensive 0-5 leveling system has been implemented. Users can now track their proficiency for each skill and faculty directly on the item card.
+- **Prerequisite Levels:** When creating or editing a skill, users can now specify the required level (1-5) of a prerequisite needed to unlock the new skill.
+- **Detailed Level Descriptions:** The "Add/Edit" modal now features a tabbed interface allowing for unique descriptions to be added for each of the 5 proficiency levels. The relevant description is displayed on the skill card based on its current level.
+- **Embedded Links:** URLs included in any description field are now automatically converted into clickable hyperlinks, opening in a new tab.
+- **Data Migration:** The underlying data structure has been upgraded to support the new features. A migration process is in place to automatically and seamlessly update existing data stored in the browser's local storage to the new format.
+
+**2025-10-02 (Previous):**
 - **Vertical Tree View:** The tree view layout is now top-down and vertical for a more intuitive genealogical feel.
 - **Prerequisite Instancing:** Prerequisites are now properly "instanced," meaning they appear correctly under every skill that requires them.
 - **Default Expanded View:** The skill tree now loads with all branches expanded by default for a complete overview.

@@ -15,7 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const itemDescriptionInput = document.getElementById('item-description');
     const itemTypeSelect = document.getElementById('item-type');
     const viewAlphaBtn = document.getElementById('view-alpha-btn');
-    const viewTreeBtn = document.getElementById('view-tree-btn');
+    const viewVTreeBtn = document.getElementById('view-vtree-btn');
+    const viewHTreeBtn = document.getElementById('view-htree-btn');
     const treeControls = document.querySelector('.tree-controls');
     const collapseAllBtn = document.getElementById('collapse-all-btn');
     const expandAllBtn = document.getElementById('expand-all-btn');
@@ -28,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         skills: [],
         faculties: [],
     };
-    let currentView = 'alpha'; // 'alpha' or 'tree'
+    let currentView = 'alpha'; // 'alpha', 'v-tree', or 'h-tree'
 
     // --- Data Functions ---
     function saveData() {
@@ -45,10 +46,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (savedData) {
-            const parsedData = JSON.parse(savedData);
-            if (parsedData.skills || parsedData.faculties) {
-                 gameData = parsedData;
-                 return;
+             try {
+                const parsedData = JSON.parse(savedData);
+                if (parsedData.skills || parsedData.faculties) {
+                    gameData = parsedData;
+                    // --- Data Migration Logic ---
+                    let needsSave = false;
+                    const allItems = [...gameData.skills, ...gameData.faculties];
+                    allItems.forEach(item => {
+                        // 1. Add level and levelDescriptions if they don't exist
+                        if (item.level === undefined) {
+                            item.level = 0;
+                            needsSave = true;
+                        }
+                        if (item.levelDescriptions === undefined) {
+                            item.levelDescriptions = { '1': '', '2': '', '3': '', '4': '', '5': '' };
+                            needsSave = true;
+                        }
+                        // 2. Migrate prerequisites from string[] to object[]
+                        if (item.prerequisites && item.prerequisites.length > 0 && typeof item.prerequisites[0] === 'string') {
+                            item.prerequisites = item.prerequisites.map(prereqId => ({ id: prereqId, requiredLevel: 1 }));
+                            needsSave = true;
+                        }
+                    });
+
+                    if (needsSave) {
+                        console.log('Xenophile: Migrated data to new format.');
+                        saveData();
+                    }
+                    return;
+                }
+            } catch (error) {
+                console.error("Error parsing saved data, initializing with defaults.", error);
+                initializeDefaultData();
+                saveData();
+                return;
             }
         }
         initializeDefaultData();
@@ -58,27 +90,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeDefaultData() {
         gameData.skills = [
             // Tier 0
-            { id: 'skill_move_0', name: 'Move', description: 'The ability to change location.', prerequisites: [], tier: 0, type: 'skill' },
-            { id: 'skill_think_0', name: 'Think', description: 'The ability to process information and form ideas.', prerequisites: [], tier: 0, type: 'skill' },
-            { id: 'skill_talk_0', name: 'Talk', description: 'The ability to communicate with sounds.', prerequisites: [], tier: 0, type: 'skill' },
-            { id: 'skill_carry_1', name: 'Carry', description: 'Hold something in your hand.', prerequisites: ['skill_move_0', 'faculty_thumbs_0'], tier: 1, type: 'skill' },
+            { id: 'skill_move_0', name: 'Move', description: 'The ability to change location.', prerequisites: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_think_0', name: 'Think', description: 'The ability to process information and form ideas.', prerequisites: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_talk_0', name: 'Talk', description: 'The ability to communicate with sounds.', prerequisites: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_carry_1', name: 'Carry', description: 'Hold something in your hand.', prerequisites: [{id: 'skill_move_0', requiredLevel: 1}, {id: 'faculty_thumbs_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
 
             // Barrel Roll Tree
-            { id: 'skill_fly_1', name: 'Fly', description: 'Gain altitude and move through the air.', prerequisites: ['faculty_wings_0', 'skill_move_0'], tier: 1, type: 'skill' },
-            { id: 'skill_barrel_roll_2', name: 'Barrel Roll', description: 'Perform a full lateral roll while in flight.', prerequisites: ['skill_fly_1', 'skill_move_0'], tier: 2, type: 'skill' },
+            { id: 'skill_fly_1', name: 'Fly', description: 'Gain altitude and move through the air.', prerequisites: [{id: 'faculty_wings_0', requiredLevel: 1}, {id: 'skill_move_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_barrel_roll_2', name: 'Barrel Roll', description: 'Perform a full lateral roll while in flight.', prerequisites: [{id: 'skill_fly_1', requiredLevel: 2}, {id: 'skill_move_0', requiredLevel: 1}], tier: 2, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
 
             // Oral Dissertation Tree
-            { id: 'skill_formulate_argument_1', name: 'Formulate Argument', description: 'Create a structured and logical line of reasoning.', prerequisites: ['skill_think_0', 'skill_talk_0'], tier: 1, type: 'skill' },
-            { id: 'skill_structure_narrative_2', name: 'Structure Narrative', description: 'Organize arguments into a compelling story.', prerequisites: ['skill_formulate_argument_1', 'skill_think_0'], tier: 2, type: 'skill' },
-            { id: 'skill_public_speaking_3', name: 'Public Speaking', description: 'Clearly articulate a narrative to an audience.', prerequisites: ['skill_structure_narrative_2', 'skill_talk_0'], tier: 3, type: 'skill' },
-            { id: 'skill_defend_thesis_4', name: 'Defend Thesis', description: 'Respond to challenges and questions about your arguments.', prerequisites: ['skill_public_speaking_3', 'skill_formulate_argument_1'], tier: 4, type: 'skill' },
-            { id: 'skill_oral_dissertation_5', name: 'Oral Dissertation', description: 'Deliver a comprehensive academic presentation to a panel of experts.', prerequisites: ['skill_defend_thesis_4', 'skill_public_speaking_3'], tier: 5, type: 'skill' },
+            { id: 'skill_formulate_argument_1', name: 'Formulate Argument', description: 'Create a structured and logical line of reasoning.', prerequisites: [{id: 'skill_think_0', requiredLevel: 1}, {id: 'skill_talk_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_structure_narrative_2', name: 'Structure Narrative', description: 'Organize arguments into a compelling story.', prerequisites: [{id: 'skill_formulate_argument_1', requiredLevel: 2}, {id: 'skill_think_0', requiredLevel: 2}], tier: 2, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_public_speaking_3', name: 'Public Speaking', description: 'Clearly articulate a narrative to an audience.', prerequisites: [{id: 'skill_structure_narrative_2', requiredLevel: 3}, {id: 'skill_talk_0', requiredLevel: 2}], tier: 3, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_defend_thesis_4', name: 'Defend Thesis', description: 'Respond to challenges and questions about your arguments.', prerequisites: [{id: 'skill_public_speaking_3', requiredLevel: 3}, {id: 'skill_formulate_argument_1', requiredLevel: 3}], tier: 4, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_oral_dissertation_5', name: 'Oral Dissertation', description: 'Deliver a comprehensive academic presentation to a panel of experts.', prerequisites: [{id: 'skill_defend_thesis_4', requiredLevel: 4}, {id: 'skill_public_speaking_3', requiredLevel: 4}], tier: 5, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
         ];
         gameData.faculties = [
             // Tier 0
-            { id: 'faculty_wings_0', name: 'Wings', description: 'Appendages that allow for flight.', prerequisites: [], tier: 0, type: 'faculty' },
-            { id: 'faculty_gills_0', name: 'Gills', description: 'Organs that allow for breathing underwater.', prerequisites: [], tier: 0, type: 'faculty' },
-            { id: 'faculty_thumbs_0', name: 'Opposable Thumbs', description: 'Thumbs that can be moved to touch the other fingers, allowing for grasping.', prerequisites: [], tier: 0, type: 'faculty' },
+            { id: 'faculty_wings_0', name: 'Wings', description: 'Appendages that allow for flight.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'faculty_gills_0', name: 'Gills', description: 'Organs that allow for breathing underwater.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'faculty_thumbs_0', name: 'Opposable Thumbs', description: 'Thumbs that can be moved to touch the other fingers, allowing for grasping.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
         ];
         // We need to ensure all tiers are correct after initializing
         updateAllDependentTiers();
@@ -121,8 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
             allItems.forEach(item => {
                 let newTier;
                 if(item.prerequisites.length > 0) {
-                    const prereqTiers = item.prerequisites.map(prereqId => {
-                        const prereq = getItemById(prereqId);
+                    const prereqTiers = item.prerequisites.map(prereqObj => {
+                        const prereq = getItemById(prereqObj.id);
                         return prereq ? prereq.tier : -1;
                     });
                     newTier = Math.max(...prereqTiers) + 1;
@@ -139,6 +171,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Modal Logic ---
+    function setupLevelDescriptionTabs(item) {
+        const tabsContainer = document.querySelector('.level-description-tabs');
+        const contentContainer = document.getElementById('level-descriptions-content');
+        contentContainer.innerHTML = ''; // Clear previous content
+
+        // Create textareas for each level
+        for (let i = 1; i <= 5; i++) {
+            const textarea = document.createElement('textarea');
+            textarea.id = `level-desc-${i}`;
+            textarea.placeholder = `Description for Level ${i}...`;
+            textarea.style.display = i === 1 ? 'block' : 'none'; // Show first tab by default
+            if (item && item.levelDescriptions) {
+                textarea.value = item.levelDescriptions[i] || '';
+            }
+            contentContainer.appendChild(textarea);
+        }
+
+        // Tab switching logic
+        tabsContainer.addEventListener('click', (e) => {
+            if (e.target.matches('.tab-btn')) {
+                const targetTab = e.target.dataset.tab;
+
+                // Update button active state
+                tabsContainer.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.tab === targetTab);
+                });
+
+                // Update textarea visibility
+                contentContainer.querySelectorAll('textarea').forEach((area, index) => {
+                    area.style.display = (index + 1).toString() === targetTab ? 'block' : 'none';
+                });
+            }
+        });
+
+         // Set the first tab as active by default
+        tabsContainer.querySelector('.tab-btn[data-tab="1"]').classList.add('active');
+    }
+
     function openModalForCreate() {
         modalTitle.textContent = 'Create New Item';
         addEditForm.reset();
@@ -147,6 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
         isTierZeroCheckbox.checked = false;
         itemTypeSelect.disabled = false;
         populatePrerequisiteDropdowns();
+        setupLevelDescriptionTabs(null); // Setup for a new item
+        document.getElementById('prereq1-level').value = 1;
+        document.getElementById('prereq2-level').value = 1;
         modal.style.display = 'block';
     }
 
@@ -164,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         itemTypeSelect.disabled = true;
 
         populatePrerequisiteDropdowns(itemId);
+        setupLevelDescriptionTabs(item); // Populate with existing data
 
         if (item.tier === 0 || item.prerequisites.length === 0) {
             isTierZeroCheckbox.checked = true;
@@ -171,8 +245,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             isTierZeroCheckbox.checked = false;
             prerequisitesContainer.style.display = 'block';
-            prereq1Select.value = item.prerequisites[0] || '';
-            prereq2Select.value = item.prerequisites[1] || '';
+            const prereq1 = item.prerequisites[0];
+            const prereq2 = item.prerequisites[1];
+            prereq1Select.value = prereq1 ? prereq1.id : '';
+            document.getElementById('prereq1-level').value = prereq1 ? prereq1.requiredLevel : 1;
+            prereq2Select.value = prereq2 ? prereq2.id : '';
+            document.getElementById('prereq2-level').value = prereq2 ? prereq2.requiredLevel : 1;
         }
 
         modal.style.display = 'block';
@@ -213,15 +291,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isTierZero) {
             const prereq1Id = prereq1Select.value;
             const prereq2Id = prereq2Select.value;
+            const prereq1Level = parseInt(document.getElementById('prereq1-level').value) || 1;
+            const prereq2Level = parseInt(document.getElementById('prereq2-level').value) || 1;
+
 
              if (prereq1Id === id || prereq2Id === id) {
                 alert('An item cannot be its own prerequisite.');
                 return;
             }
             // Only add unique, non-empty prerequisites
-            if(prereq1Id) prerequisites.push(prereq1Id);
-            if(prereq2Id && prereq1Id !== prereq2Id) prerequisites.push(prereq2Id);
+            if(prereq1Id) prerequisites.push({ id: prereq1Id, requiredLevel: prereq1Level });
+            if(prereq2Id && prereq1Id !== prereq2Id) prerequisites.push({ id: prereq2Id, requiredLevel: prereq2Level });
 
+        }
+
+        const levelDescriptions = {};
+        for (let i = 1; i <= 5; i++) {
+            levelDescriptions[i] = document.getElementById(`level-desc-${i}`).value.trim();
         }
 
         if (id) { // --- Editing Existing Item ---
@@ -233,6 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 itemToUpdate.name = name;
                 itemToUpdate.description = description;
                 itemToUpdate.prerequisites = prerequisites;
+                itemToUpdate.levelDescriptions = levelDescriptions;
             }
         } else { // --- Creating New Item ---
             const newItem = {
@@ -241,7 +328,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 description,
                 prerequisites,
                 tier: 0, // Tier will be calculated by updateAllDependentTiers
-                type
+                type,
+                level: 0,
+                levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' }
             };
             gameData[type === 'skill' ? 'skills' : 'faculties'].push(newItem);
         }
@@ -255,7 +344,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Deletion Logic ---
     function deleteItem(itemId) {
         const allItems = getAllItems();
-        const isPrerequisite = allItems.some(item => item.prerequisites.includes(itemId));
+        // Update check to look inside prerequisite objects
+        const isPrerequisite = allItems.some(item => item.prerequisites.some(p => p.id === itemId));
 
         if (isPrerequisite) {
             alert('Cannot delete this item as it is a prerequisite for another item. Please remove the dependency first.');
@@ -280,17 +370,31 @@ document.addEventListener('DOMContentLoaded', () => {
     function setView(view) {
         currentView = view;
         viewAlphaBtn.classList.toggle('active', view === 'alpha');
-        viewTreeBtn.classList.toggle('active', view === 'tree');
+        viewVTreeBtn.classList.toggle('active', view === 'v-tree');
+        viewHTreeBtn.classList.toggle('active', view === 'h-tree');
 
-        const treeStylesheet = document.getElementById('tree-view-stylesheet');
+        const vTreeStylesheet = document.getElementById('v-tree-stylesheet');
+        const hTreeStylesheet = document.getElementById('h-tree-stylesheet');
 
-        if (view === 'tree') {
+        // Reset styles and container properties
+        skillTreeContainer.className = '';
+        skillTreeContainer.style.position = '';
+
+
+        if (view === 'v-tree') {
             treeControls.style.display = 'flex';
-            treeStylesheet.disabled = false;
+            vTreeStylesheet.disabled = false;
+            hTreeStylesheet.disabled = true;
             renderGenealogyTree();
-        } else {
+        } else if (view === 'h-tree') {
+            treeControls.style.display = 'flex';
+            vTreeStylesheet.disabled = true;
+            hTreeStylesheet.disabled = false;
+            renderHorizontalTree();
+        } else { // 'alpha'
             treeControls.style.display = 'none';
-            treeStylesheet.disabled = true;
+            vTreeStylesheet.disabled = true;
+            hTreeStylesheet.disabled = true;
             renderSkillTree();
         }
 
@@ -298,26 +402,117 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     viewAlphaBtn.addEventListener('click', () => setView('alpha'));
-    viewTreeBtn.addEventListener('click', () => setView('tree'));
+    viewVTreeBtn.addEventListener('click', () => setView('v-tree'));
+    viewHTreeBtn.addEventListener('click', () => setView('h-tree'));
+
 
     function setAllBranchesCollapsed(collapsed) {
-        const allChildrenContainers = skillTreeContainer.querySelectorAll('.tree-children');
-        const allToggleButtons = skillTreeContainer.querySelectorAll('.toggle-children');
+        const isHorizontal = currentView === 'h-tree';
+        const childrenSelector = isHorizontal ? '.h-tree-children' : '.tree-children';
+        const toggleSelector = isHorizontal ? '.toggle-children-h' : '.toggle-children';
+
+        const allChildrenContainers = skillTreeContainer.querySelectorAll(childrenSelector);
+        const allToggleButtons = skillTreeContainer.querySelectorAll(toggleSelector);
 
         allChildrenContainers.forEach(container => container.classList.toggle('collapsed', collapsed));
         allToggleButtons.forEach(button => button.classList.toggle('collapsed', collapsed));
 
-        // Redraw lines
+        // Redraw lines after a short delay
         setTimeout(() => {
-            const svg = skillTreeContainer.querySelector('svg.connector-lines');
-            if (svg) drawConnectingLines(svg);
-        }, 50); // A small delay to ensure DOM is updated
+            if (isHorizontal) {
+                const svg = skillTreeContainer.querySelector('svg.h-connector-lines');
+                if (svg) drawHorizontalConnectingLines(svg);
+            } else {
+                const svg = skillTreeContainer.querySelector('svg.connector-lines');
+                if (svg) drawConnectingLines(svg);
+            }
+        }, 50);
     }
+
 
     collapseAllBtn.addEventListener('click', () => setAllBranchesCollapsed(true));
     expandAllBtn.addEventListener('click', () => setAllBranchesCollapsed(false));
 
+    // --- Shared Rendering Logic ---
+    function getTreeRoots() {
+        const allItems = getAllItems();
+        const prerequisiteIds = new Set();
+        allItems.forEach(item => {
+        item.prerequisites.forEach(prereqObj => {
+            prerequisiteIds.add(prereqObj.id);
+            });
+        });
+        return allItems.filter(item => !prerequisiteIds.has(item.id));
+    }
+
+
     // --- Rendering ---
+    function renderHorizontalTree() {
+        skillTreeContainer.innerHTML = '';
+        skillTreeContainer.style.position = 'relative';
+        const allItems = getAllItems();
+        if (allItems.length === 0) {
+            skillTreeContainer.innerHTML = '<p>No items to display.</p>';
+            return;
+        }
+
+        const roots = getTreeRoots();
+        const treeContainer = document.createElement('div');
+        treeContainer.className = 'h-tree-container';
+
+        roots.forEach(rootItem => {
+            const treeRootElement = document.createElement('div');
+            treeRootElement.className = 'h-tree-root';
+            renderHorizontalTreeBranch(rootItem, treeRootElement);
+            treeContainer.appendChild(treeRootElement);
+        });
+
+        skillTreeContainer.appendChild(treeContainer);
+
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.classList.add('h-connector-lines');
+        skillTreeContainer.insertBefore(svg, skillTreeContainer.firstChild);
+        setTimeout(() => drawHorizontalConnectingLines(svg), 100);
+    }
+
+    function renderHorizontalTreeBranch(item, parentElement) {
+        if (!item) return;
+
+        const nodeGroup = document.createElement('div');
+        nodeGroup.className = 'h-tree-node-group';
+
+        const card = createSkillCard(item);
+        nodeGroup.appendChild(card);
+
+        const hasPrerequisites = item.prerequisites && item.prerequisites.length > 0;
+        if (hasPrerequisites) {
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'h-tree-children';
+
+        item.prerequisites.forEach(prereqObj => {
+            const prereqItem = getItemById(prereqObj.id);
+                renderHorizontalTreeBranch(prereqItem, childrenContainer);
+            });
+            nodeGroup.appendChild(childrenContainer);
+
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'toggle-children-h';
+            card.appendChild(toggleBtn);
+
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isCollapsed = childrenContainer.classList.toggle('collapsed');
+                toggleBtn.classList.toggle('collapsed', isCollapsed);
+                setTimeout(() => {
+                    const svg = skillTreeContainer.querySelector('svg.h-connector-lines');
+                    if (svg) drawHorizontalConnectingLines(svg);
+                }, 200);
+            });
+        }
+        parentElement.appendChild(nodeGroup);
+    }
+
+
     function renderGenealogyTree() {
         skillTreeContainer.innerHTML = '';
         skillTreeContainer.style.position = 'relative';
@@ -327,41 +522,26 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // --- New Tree Logic: Top-Down Rendering ---
-
-        // 1. Find all items that are used as prerequisites
-        const prerequisiteIds = new Set();
-        allItems.forEach(item => {
-            item.prerequisites.forEach(prereqId => {
-                prerequisiteIds.add(prereqId);
-            });
-        });
-
-        // 2. Identify the "roots" - items that are NOT prerequisites for anything else
-        const roots = allItems.filter(item => !prerequisiteIds.has(item.id));
-
-        // 3. Create a container for all the separate trees
+        const roots = getTreeRoots();
         const treeContainer = document.createElement('div');
         treeContainer.className = 'tree-container';
 
-        // 4. Render each tree starting from its root
         roots.forEach(rootItem => {
             const treeRootElement = document.createElement('div');
             treeRootElement.className = 'tree-root';
-            renderTreeBranch(rootItem, treeRootElement);
+            renderVerticalTreeBranch(rootItem, treeRootElement);
             treeContainer.appendChild(treeRootElement);
         });
 
         skillTreeContainer.appendChild(treeContainer);
 
-        // Draw connecting lines after a short delay
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.classList.add('connector-lines');
         skillTreeContainer.insertBefore(svg, skillTreeContainer.firstChild);
         setTimeout(() => drawConnectingLines(svg), 100);
     }
 
-    function renderTreeBranch(item, parentElement) {
+    function renderVerticalTreeBranch(item, parentElement) {
         if (!item) return;
 
         const nodeGroup = document.createElement('div');
@@ -375,9 +555,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'tree-children';
 
-            item.prerequisites.forEach(prereqId => {
-                const prereqItem = getItemById(prereqId);
-                renderTreeBranch(prereqItem, childrenContainer);
+        item.prerequisites.forEach(prereqObj => {
+            const prereqItem = getItemById(prereqObj.id);
+                renderVerticalTreeBranch(prereqItem, childrenContainer);
             });
             nodeGroup.appendChild(childrenContainer);
 
@@ -401,21 +581,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
+function changeItemLevel(itemId, delta) {
+    const item = getItemById(itemId);
+    if (!item) return;
+
+    let newLevel = (item.level || 0) + delta;
+    if (newLevel < 0) newLevel = 0;
+    if (newLevel > 5) newLevel = 5;
+
+    item.level = newLevel;
+    saveData();
+    setView(currentView); // Re-render to show updated level description and state
+}
+
     function createSkillCard(item) {
         const card = document.createElement('div');
         card.className = 'skill-card';
         card.dataset.id = item.id;
         card.dataset.type = item.type;
 
-        const cardTitle = document.createElement('h3');
-        cardTitle.textContent = item.name;
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'card-title-container';
+
+    const cardTitle = document.createElement('h3');
+    cardTitle.textContent = item.name;
+
+    // --- Level Display and Controls ---
+    const levelContainer = document.createElement('div');
+    levelContainer.className = 'level-container';
+
+    const levelDownBtn = document.createElement('button');
+    levelDownBtn.className = 'level-btn';
+    levelDownBtn.textContent = '−';
+    levelDownBtn.onclick = () => changeItemLevel(item.id, -1);
+
+    const levelDisplay = document.createElement('span');
+    levelDisplay.className = 'level-display';
+    levelDisplay.textContent = `Lvl ${item.level || 0}`;
+
+    const levelUpBtn = document.createElement('button');
+    levelUpBtn.className = 'level-btn';
+    levelUpBtn.textContent = '+';
+    levelUpBtn.onclick = () => changeItemLevel(item.id, 1);
+
+    levelContainer.appendChild(levelDownBtn);
+    levelContainer.appendChild(levelDisplay);
+    levelContainer.appendChild(levelUpBtn);
+
+    titleContainer.appendChild(cardTitle);
+    titleContainer.appendChild(levelContainer);
 
         const cardType = document.createElement('p');
         cardType.className = 'skill-type';
         cardType.textContent = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
 
         const cardDescription = document.createElement('p');
-        cardDescription.textContent = item.description;
+    const descriptionText = item.level > 0 && item.levelDescriptions[item.level]
+        ? `<strong>Lvl ${item.level} Desc:</strong> ${item.levelDescriptions[item.level]}`
+        : item.description;
+
+    // Simple URL finder and replacer
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    cardDescription.innerHTML = descriptionText.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+
 
         const cardControls = document.createElement('div');
         cardControls.className = 'card-controls';
@@ -437,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cardControls.appendChild(editBtn);
         cardControls.appendChild(deleteBtn);
 
-        card.appendChild(cardTitle);
+    card.appendChild(titleContainer);
         card.appendChild(cardType);
         card.appendChild(cardDescription);
 
@@ -449,10 +677,10 @@ document.addEventListener('DOMContentLoaded', () => {
             prereqList.appendChild(prereqTitle);
 
             const ul = document.createElement('ul');
-            item.prerequisites.forEach(prereqId => {
-                const prereqItem = getItemById(prereqId);
+        item.prerequisites.forEach(prereqObj => {
+            const prereqItem = getItemById(prereqObj.id);
                 const li = document.createElement('li');
-                li.textContent = prereqItem ? `${prereqItem.name} (T${prereqItem.tier})` : 'Unknown';
+            li.textContent = prereqItem ? `${prereqItem.name} (Lvl ${prereqObj.requiredLevel} Req.)` : 'Unknown';
                 ul.appendChild(li);
             });
             prereqList.appendChild(ul);
@@ -461,6 +689,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         card.appendChild(cardControls);
         return card;
+    }
+
+    function drawHorizontalConnectingLines(svg) {
+        svg.innerHTML = '';
+        const containerRect = skillTreeContainer.getBoundingClientRect();
+
+        const childCards = Array.from(skillTreeContainer.querySelectorAll('.h-tree-children .skill-card'));
+
+        childCards.forEach(childCard => {
+            const childrenContainer = childCard.closest('.h-tree-children');
+            if (!childrenContainer || childrenContainer.classList.contains('collapsed')) {
+                return;
+            }
+
+            const parentCard = childrenContainer.parentElement.querySelector(':scope > .skill-card');
+
+            if (parentCard) {
+                const parentRect = parentCard.getBoundingClientRect();
+                const childRect = childCard.getBoundingClientRect();
+
+                // From right-center of parent
+                const startX = parentRect.right - containerRect.left;
+                const startY = parentRect.top - containerRect.top + parentRect.height / 2;
+
+                // To left-center of child
+                const endX = childRect.left - containerRect.left;
+                const endY = childRect.top - containerRect.top + childRect.height / 2;
+
+                if (startX === endX && startY === endY) return;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                // Use a bezier curve for a smoother horizontal look
+                path.setAttribute('d', `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`);
+                path.setAttribute('stroke', '#ccc');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('fill', 'none');
+                svg.appendChild(path);
+            }
+        });
     }
 
     function drawConnectingLines(svg) {

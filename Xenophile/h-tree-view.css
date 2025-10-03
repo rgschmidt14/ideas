@@ -1,0 +1,92 @@
+/* --- Horizontal Tree View Specific Styles --- */
+
+/* The main container for all the trees */
+.h-tree-container {
+    display: flex;
+    flex-direction: column; /* Each tree will be in its own row */
+    align-items: flex-start; /* Align trees to the left */
+    gap: 4rem; /* Space between different trees */
+    padding: 2rem;
+    overflow-x: auto; /* Allow horizontal scrolling if trees are wide */
+}
+
+/* A container for a single, complete tree (from root to leaves) */
+.h-tree-root {
+    display: inline-flex;
+    flex-direction: row; /* Key change: Root and children are side-by-side */
+    align-items: center; /* Center the root card and its children container vertically */
+}
+
+/* A group containing a single node and all its direct children */
+.h-tree-node-group {
+    display: flex;
+    flex-direction: row; /* Node is to the left, children to the right */
+    align-items: center; /* Center the card and the children container vertically */
+    position: relative;
+    margin: 1rem;
+}
+
+/* The container for the skill card itself */
+.h-tree-node {
+    flex-shrink: 0;
+}
+
+/* The container for all children of a node */
+.h-tree-children {
+    display: flex;
+    flex-direction: column; /* Key change: Children are stacked vertically */
+    justify-content: center; /* Center children vertically */
+    align-items: flex-start;
+    margin-left: 50px; /* Space between parent and children */
+    position: relative;
+}
+
+/* Hide children when collapsed */
+.h-tree-children.collapsed {
+    display: none;
+}
+
+
+/* --- SVG and Connector Lines --- */
+svg.h-connector-lines {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allows clicking through the SVG layer */
+    z-index: 0; /* Behind the skill cards */
+}
+
+/* --- Toggle Button --- */
+.toggle-children-h {
+    position: absolute;
+    right: -12px; /* Position just beyond the card's right edge */
+    top: 50%;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    font-weight: bold;
+    line-height: 1;
+    z-index: 2; /* Make sure button is on top */
+}
+
+.toggle-children-h::before {
+    display: block;
+}
+
+.toggle-children-h.collapsed::before {
+    content: '+';
+}
+
+.toggle-children-h:not(.collapsed)::before {
+    content: '−'; /* Using a proper minus sign */
+}
