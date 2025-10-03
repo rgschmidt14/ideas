@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const itemTypeSelect = document.getElementById('item-type');
     const viewAlphaBtn = document.getElementById('view-alpha-btn');
     const viewTreeBtn = document.getElementById('view-tree-btn');
+    const treeControls = document.querySelector('.tree-controls');
+    const collapseAllBtn = document.getElementById('collapse-all-btn');
+    const expandAllBtn = document.getElementById('expand-all-btn');
 
 
     // --- Game Data & Constants ---
@@ -282,9 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const treeStylesheet = document.getElementById('tree-view-stylesheet');
 
         if (view === 'tree') {
+            treeControls.style.display = 'flex';
             treeStylesheet.disabled = false;
             renderGenealogyTree();
         } else {
+            treeControls.style.display = 'none';
             treeStylesheet.disabled = true;
             renderSkillTree();
         }
@@ -294,6 +299,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     viewAlphaBtn.addEventListener('click', () => setView('alpha'));
     viewTreeBtn.addEventListener('click', () => setView('tree'));
+
+    function setAllBranchesCollapsed(collapsed) {
+        const allChildrenContainers = skillTreeContainer.querySelectorAll('.tree-children');
+        const allToggleButtons = skillTreeContainer.querySelectorAll('.toggle-children');
+
+        allChildrenContainers.forEach(container => container.classList.toggle('collapsed', collapsed));
+        allToggleButtons.forEach(button => button.classList.toggle('collapsed', collapsed));
+
+        // Redraw lines
+        setTimeout(() => {
+            const svg = skillTreeContainer.querySelector('svg.connector-lines');
+            if (svg) drawConnectingLines(svg);
+        }, 50); // A small delay to ensure DOM is updated
+    }
+
+    collapseAllBtn.addEventListener('click', () => setAllBranchesCollapsed(true));
+    expandAllBtn.addEventListener('click', () => setAllBranchesCollapsed(false));
 
     // --- Rendering ---
     function renderGenealogyTree() {
@@ -305,37 +327,29 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Create a map of nodes to build the tree structure
-        const nodes = new Map(allItems.map(item => [item.id, { item, children: [], element: null, isRendered: false }]));
+        // --- New Tree Logic: Top-Down Rendering ---
 
-        // Populate children arrays and identify roots
-        const roots = [];
-        nodes.forEach(node => {
-            const hasPrerequisites = node.item.prerequisites && node.item.prerequisites.length > 0;
-            if (hasPrerequisites) {
-                node.item.prerequisites.forEach(prereqId => {
-                    const parentNode = nodes.get(prereqId);
-                    if (parentNode) {
-                        parentNode.children.push(node);
-                    }
-                });
-            } else {
-                roots.push(node);
-            }
+        // 1. Find all items that are used as prerequisites
+        const prerequisiteIds = new Set();
+        allItems.forEach(item => {
+            item.prerequisites.forEach(prereqId => {
+                prerequisiteIds.add(prereqId);
+            });
         });
 
-        // Create a container for all the separate trees
+        // 2. Identify the "roots" - items that are NOT prerequisites for anything else
+        const roots = allItems.filter(item => !prerequisiteIds.has(item.id));
+
+        // 3. Create a container for all the separate trees
         const treeContainer = document.createElement('div');
         treeContainer.className = 'tree-container';
 
-        // Render each tree starting from its roots
-        roots.forEach(rootNode => {
-            if (!rootNode.isRendered) {
-                const treeRootElement = document.createElement('div');
-                treeRootElement.className = 'tree-root';
-                recursivelyRenderNode(rootNode, treeRootElement, nodes);
-                treeContainer.appendChild(treeRootElement);
-            }
+        // 4. Render each tree starting from its root
+        roots.forEach(rootItem => {
+            const treeRootElement = document.createElement('div');
+            treeRootElement.className = 'tree-root';
+            renderTreeBranch(rootItem, treeRootElement);
+            treeContainer.appendChild(treeRootElement);
         });
 
         skillTreeContainer.appendChild(treeContainer);
@@ -344,31 +358,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.classList.add('connector-lines');
         skillTreeContainer.insertBefore(svg, skillTreeContainer.firstChild);
-        setTimeout(() => drawConnectingLines(svg, nodes), 100);
+        setTimeout(() => drawConnectingLines(svg), 100);
     }
 
-    function recursivelyRenderNode(node, parentElement) {
-        if (node.isRendered) return;
+    function renderTreeBranch(item, parentElement) {
+        if (!item) return;
 
         const nodeGroup = document.createElement('div');
         nodeGroup.className = 'tree-node-group';
 
-        const card = createSkillCard(node.item);
+        const card = createSkillCard(item);
         nodeGroup.appendChild(card);
-        node.element = card; // Keep a reference to the card itself
-        node.isRendered = true;
 
-        if (node.children.length > 0) {
+        const hasPrerequisites = item.prerequisites && item.prerequisites.length > 0;
+        if (hasPrerequisites) {
             const childrenContainer = document.createElement('div');
             childrenContainer.className = 'tree-children';
-            node.children.forEach(childNode => {
-                recursivelyRenderNode(childNode, childrenContainer);
+
+            item.prerequisites.forEach(prereqId => {
+                const prereqItem = getItemById(prereqId);
+                renderTreeBranch(prereqItem, childrenContainer);
             });
             nodeGroup.appendChild(childrenContainer);
 
             // Add toggle button
             const toggleBtn = document.createElement('button');
-            toggleBtn.className = 'toggle-children collapsed';
+            toggleBtn.className = 'toggle-children'; // Default to expanded
             card.appendChild(toggleBtn);
 
             toggleBtn.addEventListener('click', (e) => {
@@ -381,7 +396,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (svg) drawConnectingLines(svg);
                 }, 200);
             });
-            childrenContainer.classList.add('collapsed');
         }
         parentElement.appendChild(nodeGroup);
     }
@@ -453,37 +467,43 @@ document.addEventListener('DOMContentLoaded', () => {
         svg.innerHTML = '';
         const containerRect = skillTreeContainer.getBoundingClientRect();
 
-        const allCards = Array.from(skillTreeContainer.querySelectorAll('.skill-card'));
+        // Find all cards that are children (i.e., inside a .tree-children container)
+        const childCards = Array.from(skillTreeContainer.querySelectorAll('.tree-children .skill-card'));
 
-        allCards.forEach(childCard => {
-            const childId = childCard.dataset.id;
-            const childItem = getItemById(childId);
-            if (!childItem || !childItem.prerequisites) return;
+        childCards.forEach(childCard => {
+            const childrenContainer = childCard.closest('.tree-children');
 
-            // Don't draw lines to hidden cards
-            if (childCard.closest('.tree-children.collapsed')) {
+            // Don't draw lines if the container is hidden
+            if (!childrenContainer || childrenContainer.classList.contains('collapsed')) {
                 return;
             }
 
-            childItem.prerequisites.forEach(prereqId => {
-                const parentCard = skillTreeContainer.querySelector(`.skill-card[data-id="${prereqId}"]`);
-                if (parentCard && !parentCard.closest('.tree-children.collapsed')) {
-                    const parentRect = parentCard.getBoundingClientRect();
-                    const childRect = childCard.getBoundingClientRect();
+            // The parent card is the .skill-card within the same .tree-node-group as the .tree-children container
+            const parentCard = childrenContainer.parentElement.querySelector(':scope > .skill-card');
 
-                    const startX = parentRect.right - containerRect.left;
-                    const startY = parentRect.top - containerRect.top + parentRect.height / 2;
-                    const endX = childRect.left - containerRect.left;
-                    const endY = childRect.top - containerRect.top + childRect.height / 2;
+            if (parentCard) {
+                const parentRect = parentCard.getBoundingClientRect();
+                const childRect = childCard.getBoundingClientRect();
 
-                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    path.setAttribute('d', `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`);
-                    path.setAttribute('stroke', '#ccc');
-                    path.setAttribute('stroke-width', '2');
-                    path.setAttribute('fill', 'none');
-                    svg.appendChild(path);
-                }
-            });
+                // From bottom-center of parent
+                const startX = parentRect.left - containerRect.left + parentRect.width / 2;
+                const startY = parentRect.bottom - containerRect.top;
+
+                // To top-center of child
+                const endX = childRect.left - containerRect.left + childRect.width / 2;
+                const endY = childRect.top - containerRect.top;
+
+                // Make sure we don't draw line to itself in some weird edge case.
+                if (startX === endX && startY === endY) return;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                // Use a bezier curve for a smoother vertical look
+                path.setAttribute('d', `M ${startX} ${startY} C ${startX} ${startY + 50}, ${endX} ${endY - 50}, ${endX} ${endY}`);
+                path.setAttribute('stroke', '#ccc');
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('fill', 'none');
+                svg.appendChild(path);
+            }
         });
     }
 

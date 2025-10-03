@@ -21,23 +21,25 @@
 /* A group containing a single node and all its direct children */
 .tree-node-group {
     display: flex;
-    flex-direction: row; /* Parent and children are laid out horizontally */
-    align-items: center; /* Vertically align parent card with the group of children */
-    position: relative; /* For connector lines */
+    flex-direction: column; /* Parent is on top, children below */
+    align-items: center; /* Center the card and the children container horizontally */
+    position: relative;
+    margin: 1rem; /* Add some space around node groups */
 }
 
 /* The container for the skill card itself */
 .tree-node {
-    flex-shrink: 0; /* Prevent skill cards from shrinking */
+    flex-shrink: 0;
 }
 
 /* The container for all children of a node */
 .tree-children {
     display: flex;
-    flex-direction: column; /* Children are stacked vertically */
-    justify-content: center; /* Center children vertically relative to the parent */
-    margin-left: 50px; /* Space between parent and children */
-    position: relative; /* For connector lines */
+    flex-direction: row; /* Children are laid out side-by-side */
+    justify-content: center; /* Center children horizontally */
+    align-items: flex-start; /* Align children to the top */
+    margin-top: 50px; /* Space between parent and children */
+    position: relative;
 }
 
 /* Hide children when collapsed */
@@ -66,9 +68,9 @@ svg.connector-lines {
 
 .toggle-children {
     position: absolute;
-    top: 50%;
-    right: -12px; /* Position just outside the card's right edge */
-    transform: translateY(-50%);
+    bottom: -12px; /* Position just below the card's bottom edge */
+    left: 50%;
+    transform: translateX(-50%);
     width: 24px;
     height: 24px;
     border-radius: 50%;
