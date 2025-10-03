@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Xenophile</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="tree-view.css" id="tree-view-stylesheet" disabled>
+    <link rel="stylesheet" href="tree-view.css" id="v-tree-stylesheet" disabled>
+    <link rel="stylesheet" href="h-tree-view.css" id="h-tree-stylesheet" disabled>
 </head>
 <body>
     <header>
@@ -16,7 +17,8 @@
         <div class="toolbar">
             <div class="view-switcher">
                 <button id="view-alpha-btn" class="view-btn active">Alphabetical</button>
-                <button id="view-tree-btn" class="view-btn">Tree</button>
+                <button id="view-vtree-btn" class="view-btn">V-Tree</button>
+                <button id="view-htree-btn" class="view-btn">H-Tree</button>
             </div>
             <div class="tree-controls" style="display: none;">
                 <button id="collapse-all-btn">Collapse All</button>
@@ -58,19 +60,47 @@
                     </label>
                 </div>
                 <div id="prerequisites-container">
-                    <div class="form-group">
-                        <label for="prerequisite1">Prerequisite 1:</label>
-                        <select id="prerequisite1" name="prerequisite1">
-                            <option value="">None</option>
-                        </select>
+                    <div class="prerequisite-item">
+                        <div class="form-group">
+                            <label for="prerequisite1">Prerequisite 1:</label>
+                            <select id="prerequisite1" name="prerequisite1">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div class="form-group level-input">
+                             <label for="prereq1-level">Req. Lvl:</label>
+                            <input type="number" id="prereq1-level" name="prereq1-level" min="1" max="5" value="1">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="prerequisite2">Prerequisite 2:</label>
-                        <select id="prerequisite2" name="prerequisite2">
-                            <option value="">None</option>
-                        </select>
+                     <div class="prerequisite-item">
+                        <div class="form-group">
+                            <label for="prerequisite2">Prerequisite 2:</label>
+                            <select id="prerequisite2" name="prerequisite2">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div class="form-group level-input">
+                            <label for="prereq2-level">Req. Lvl:</label>
+                            <input type="number" id="prereq2-level" name="prereq2-level" min="1" max="5" value="1">
+                        </div>
                     </div>
                 </div>
+
+                <!-- Level Descriptions -->
+                <div id="level-descriptions-container">
+                    <h4>Level Descriptions (Optional)</h4>
+                    <div class="level-description-tabs">
+                        <button type="button" class="tab-btn active" data-tab="1">Lvl 1</button>
+                        <button type="button" class="tab-btn" data-tab="2">Lvl 2</button>
+                        <button type="button" class="tab-btn" data-tab="3">Lvl 3</button>
+                        <button type="button" class="tab-btn" data-tab="4">Lvl 4</button>
+                        <button type="button" class="tab-btn" data-tab="5">Lvl 5</button>
+                    </div>
+                    <div id="level-descriptions-content">
+                        <!-- Textareas will be dynamically generated here -->
+                    </div>
+                </div>
+
                 <button type="submit" id="save-btn">Save</button>
             </form>
         </div>
