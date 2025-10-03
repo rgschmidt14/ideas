@@ -11,7 +11,7 @@
 <body>
     <header>
         <h1>Xenophile</h1>
-        <p>A game of skill creation</p>
+        <p>Map your life's skill tree.</p>
     </header>
     <main>
         <div class="toolbar">
@@ -24,7 +24,19 @@
                 <button id="collapse-all-btn">Collapse All</button>
                 <button id="expand-all-btn">Expand All</button>
             </div>
-            <button id="add-skill-btn">Add New Item</button>
+            <div class="toolbar-group-right">
+                 <div class="discovery-mode-control">
+                    <label class="switch">
+                        <input type="checkbox" id="discovery-mode-toggle">
+                        <span class="slider round"></span>
+                    </label>
+                    <span class="discovery-label">Discovery Mode</span>
+                </div>
+                <input type="file" id="import-file-input" accept=".json" style="display: none;" />
+                <button id="import-btn" class="toolbar-btn">Import</button>
+                <button id="export-btn" class="toolbar-btn">Export</button>
+                <button id="add-skill-btn">Add New Item</button>
+            </div>
         </div>
         <div id="skill-tree-container">
             <!-- Skills will be rendered here -->
