@@ -18,3 +18,10 @@ This is a simple web application designed to help pet owners determine if the pa
 
 *   Implement a more sophisticated temperature calculation model that takes into account weather data from the previous 10 hours.
 *   Add support for a wider range of locations.
+
+---
+
+## Changelog
+
+**2025-10-02:**
+- **Robust Location Storage:** Fixed a bug where the app would crash if it found an old, non-JSON location entry in the browser's local storage. The app now correctly handles and updates the old data format, ensuring a smooth experience for returning users.
