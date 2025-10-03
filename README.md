@@ -20,6 +20,9 @@ To keep our projects organized, please follow these simple steps when adding a n
 
 ## Changelog
 
+**2025-10-02:**
+- **Robust Location Storage:** Fixed a bug in both the `SunburnApp` and `PavementTemp` applications where the app would crash if it found an old, non-JSON location entry in the browser's local storage. The apps now correctly handle and updates the old data format, ensuring a smooth experience for returning users.
+
 **2025-09-30:**
 - **Full CRUD Functionality:** Added the ability to create, edit, and delete skills and faculties.
 - **Sorting Views:** Implemented "Alphabetical" and "Tree" view sorting options to organize the skill tree.

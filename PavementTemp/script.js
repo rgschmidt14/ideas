@@ -15,9 +15,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Auto-load weather for last location
     if (lastLocationData) {
-        const location = JSON.parse(lastLocationData);
-        locationInput.value = location.name;
-        getWeatherByCoords(location.latitude, location.longitude);
+        try {
+            const location = JSON.parse(lastLocationData);
+            locationInput.value = location.name;
+            getWeatherByCoords(location.latitude, location.longitude);
+        } catch (error) {
+            // Assuming the error is due to old string format
+            console.warn("Could not parse lastLocation, assuming old format:", lastLocationData);
+            locationInput.value = lastLocationData;
+            getWeatherByCity(lastLocationData); // This will fetch and update to the new format
+        }
     }
 
     checkTempBtn.addEventListener('click', () => {
