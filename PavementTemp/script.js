@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Current Conditions
     const cementTempDiv = document.getElementById('cement-temp');
     const asphaltTempDiv = document.getElementById('asphalt-temp');
+    const cloudCoverDiv = document.getElementById('cloud-cover');
     const safetyMessageDiv = document.getElementById('safety-message');
     const pawIcon = document.getElementById('paw-icon');
     const safetyText = document.getElementById('safety-text');
@@ -128,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset UI
         forecastBody.innerHTML = '<tr><td colspan="5">Loading forecast...</td></tr>';
 
-        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,shortwave_radiation,windspeed_10m&timezone=auto&forecast_days=1`;
+        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,shortwave_radiation,windspeed_10m,cloudcover&timezone=auto&forecast_days=1`;
 
         fetch(apiUrl)
             .then(response => response.json())
@@ -146,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function processWeatherData(data) {
-        const { time, temperature_2m, shortwave_radiation, windspeed_10m } = data.hourly;
+        const { time, temperature_2m, shortwave_radiation, windspeed_10m, cloudcover } = data.hourly;
 
         // Find the current hour's index
         const now = new Date();
@@ -161,12 +162,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentAirTempC = temperature_2m[currentHourIndex];
         const currentRadiation = shortwave_radiation[currentHourIndex];
         const currentWindKmh = windspeed_10m[currentHourIndex];
+        const currentCloudCover = cloudcover[currentHourIndex];
 
-        displayCurrentResults(currentAirTempC, currentRadiation, currentWindKmh);
+        displayCurrentResults(currentAirTempC, currentRadiation, currentWindKmh, currentCloudCover);
         populateCalculator(currentAirTempC, currentRadiation, currentWindKmh);
 
         // Populate forecast table
-        populateForecastGrid(time, temperature_2m, shortwave_radiation, windspeed_10m);
+        populateForecastGrid(time, temperature_2m, shortwave_radiation, windspeed_10m, cloudcover);
     }
 
     function calculatePavementTemp(airTempC, radiation, windKmh, surfaceType) {
@@ -186,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- UI Update Functions ---
-    function displayCurrentResults(airTempC, radiation, windKmh) {
+    function displayCurrentResults(airTempC, radiation, windKmh, cloudCover) {
         const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, 'cement');
         const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, 'asphalt');
         const cementTempF = (cementTempC * 9/5) + 32;
@@ -194,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         cementTempDiv.innerHTML = `Est. Cement Temp: <strong>${cementTempF.toFixed(1)}°F</strong> (${cementTempC.toFixed(1)}°C)`;
         asphaltTempDiv.innerHTML = `Est. Asphalt Temp: <strong>${asphaltTempF.toFixed(1)}°F</strong> (${asphaltTempC.toFixed(1)}°C)`;
+        cloudCoverDiv.innerHTML = `Cloud Cover: <strong>${cloudCover}%</strong>`;
 
         updateSafetyMessage(asphaltTempF);
 
@@ -222,7 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
         calcAsphaltTempDiv.innerHTML = `Est. Asphalt: <strong>${asphaltTempF.toFixed(1)}°F</strong> (${asphaltTempC.toFixed(1)}°C)`;
     }
 
-    function populateForecastGrid(times, airTemps, radiations, winds) {
+    function populateForecastGrid(times, airTemps, radiations, winds, cloudcovers) {
         forecastBody.innerHTML = ''; // Clear previous forecast
 
         times.forEach((timeStr, index) => {
@@ -231,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const airTempC = airTemps[index];
             const airTempF = (airTempC * 9/5) + 32;
+            const cloudCover = cloudcovers[index];
 
             const cementTempC = calculatePavementTemp(airTempC, radiations[index], winds[index], 'cement');
             const cementTempF = (cementTempC * 9/5) + 32;
@@ -243,6 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
             row.innerHTML = `
                 <td>${hour}</td>
                 <td>${airTempC.toFixed(1)}°C / ${airTempF.toFixed(1)}°F</td>
+                <td>${cloudCover}%</td>
                 <td>${cementTempC.toFixed(1)}°C / ${cementTempF.toFixed(1)}°F</td>
                 <td>${asphaltTempC.toFixed(1)}°C / ${asphaltTempF.toFixed(1)}°F</td>
                 <td style="color: ${color};">${message}</td>

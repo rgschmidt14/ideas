@@ -22,6 +22,7 @@
             <p id="last-updated"></p>
             <div id="cement-temp"></div>
             <div id="asphalt-temp"></div>
+            <div id="cloud-cover"></div>
             <div id="safety-message"><span id="paw-icon">🐾</span> <span id="safety-text"></span></div>
         </div>
 
@@ -49,6 +50,7 @@
                     <tr>
                         <th>Time</th>
                         <th>Air Temp (°C/°F)</th>
+                        <th>Cloud Cover</th>
                         <th>Cement Temp (°C/°F)</th>
                         <th>Asphalt Temp (°C/°F)</th>
                         <th>Safety</th>
@@ -63,7 +65,13 @@
 
     <div class="info-container">
         <h2>How it Works (The "Gee-Wiz" Info)</h2>
-        <p>This tool estimates pavement temperature using a formula that considers air temperature, solar radiation (sunlight intensity), and wind speed. Darker surfaces like asphalt absorb more heat, while wind helps to cool the surface.</p>
+        <p>This tool estimates pavement temperature using a formula that considers three key factors from weather data:</p>
+        <ul>
+            <li><strong>Air Temperature:</strong> The baseline temperature.</li>
+            <li><strong>Solar Radiation:</strong> This is the most important factor for surface heating. It measures the amount of solar energy hitting the ground. A high value means intense, direct sunlight (a clear day), while a low value means clouds are blocking the sun's energy. This is how the calculation accounts for sunny vs. cloudy conditions.</li>
+            <li><strong>Wind Speed:</strong> Wind helps to cool the pavement surface, similar to how blowing on hot food cools it down.</li>
+        </ul>
+        <p>Darker surfaces like asphalt absorb much more of the sun's energy (low albedo) and get hotter than lighter surfaces like cement. The "Calculation Explorer" lets you see this relationship in action!</p>
         <h3>Safety Thresholds:</h3>
         <ul>
             <li><strong>< 110°F (43°C):</strong> Generally safe for paws and feet.</li>
