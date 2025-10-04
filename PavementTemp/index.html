@@ -18,18 +18,52 @@
         </div>
         <div id="suggestions-container"></div>
         <div id="results" class="results-section">
-            <h2>Temperature Estimation</h2>
+            <h2>Current Pavement Temperature</h2>
             <p id="last-updated"></p>
             <div id="cement-temp"></div>
             <div id="asphalt-temp"></div>
             <div id="safety-message"><span id="paw-icon">🐾</span> <span id="safety-text"></span></div>
         </div>
+
+        <div id="calculator-container" class="info-container">
+            <h2>Calculation Explorer</h2>
+            <p>See how different factors affect pavement temperature. Adjust the values for the current hour to see the impact in real-time!</p>
+            <div class="calc-inputs">
+                <label for="airTempInput">Air Temperature (°C):</label>
+                <input type="number" id="airTempInput" step="0.1">
+                <label for="solarRadiationInput">Solar Radiation (W/m²):</label>
+                <input type="number" id="solarRadiationInput" step="10">
+                <label for="windSpeedInput">Wind Speed (km/h):</label>
+                <input type="number" id="windSpeedInput" step="1">
+            </div>
+            <div class="calc-results">
+                <div id="calc-cement-temp"></div>
+                <div id="calc-asphalt-temp"></div>
+            </div>
+        </div>
+
+        <div id="forecast-container" class="results-section">
+            <h2>Hourly Pavement Forecast</h2>
+            <table id="forecast-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Air Temp (°C/°F)</th>
+                        <th>Cement Temp (°C/°F)</th>
+                        <th>Asphalt Temp (°C/°F)</th>
+                        <th>Safety</th>
+                    </tr>
+                </thead>
+                <tbody id="forecast-body">
+                    <!-- Rows will be populated by script.js -->
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div class="info-container">
         <h2>How it Works (The "Gee-Wiz" Info)</h2>
-        <p>This tool estimates pavement temperature based on a weighted average of the air temperature over the last 10 hours, giving more significance to recent temperatures. Pavement, especially dark asphalt, absorbs and retains a lot of heat from the sun.</p>
-        <p><strong>Why the difference?</strong> A simple rule of thumb is that in direct sunlight, asphalt can be 40-60°F hotter than the air temperature. This tool uses a slightly more conservative estimate to be on the safe side.</p>
+        <p>This tool estimates pavement temperature using a formula that considers air temperature, solar radiation (sunlight intensity), and wind speed. Darker surfaces like asphalt absorb more heat, while wind helps to cool the surface.</p>
         <h3>Safety Thresholds:</h3>
         <ul>
             <li><strong>< 110°F (43°C):</strong> Generally safe for paws and feet.</li>
