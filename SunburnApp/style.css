@@ -144,6 +144,32 @@ h1 {
     background-color: #fdfdfd; /* Subtle zebra-striping for rows */
 }
 
+#forecast-table .current-hour {
+    background-color: #fff2ab; /* A gentle yellow highlight */
+    font-weight: bold;
+}
+
+.forecast-controls {
+    margin-top: 1em;
+    text-align: center;
+}
+
+.forecast-controls button {
+    padding: 8px 16px;
+    border-radius: 5px;
+    border: 1px solid #FFC300;
+    background-color: #fff;
+    color: #FFC300;
+    cursor: pointer;
+    margin: 0 5px;
+}
+
+.forecast-controls button:hover {
+    background-color: #FFC300;
+    color: white;
+}
+
+
 /* --- Responsive Design --- */
 @media (max-width: 820px) {
     .container, .info-container {

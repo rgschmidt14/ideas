@@ -24,6 +24,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Forecast Table
     const forecastBody = document.getElementById('forecast-body');
+    const showMoreBtn = document.getElementById('showMoreBtn');
+    const showLessBtn = document.getElementById('showLessBtn');
+
+
+    // --- App State ---
+    let forecastHoursToShow = 10; // Initial number of hours to show
+    const FORECAST_INCREMENT = 10; // How many hours to add/remove
+    const MAX_FORECAST_HOURS = 30;
 
     // --- Physics & Material Constants ---
     const ASPHALT_ALBEDO = 0.05; // Reflectivity (5%)
@@ -48,6 +56,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error parsing lastLocation from localStorage:", error);
         }
     }
+    // Load user's forecast preference
+    const savedHours = localStorage.getItem('forecastHoursToShow');
+    if (savedHours) {
+        forecastHoursToShow = parseInt(savedHours, 10);
+    }
+
 
     // --- Event Listeners ---
     checkTempBtn.addEventListener('click', () => {
@@ -62,6 +76,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     [airTempInput, solarRadiationInput, windSpeedInput, cloudCoverInput].forEach(input => {
         input.addEventListener('input', updateCalculator);
+    });
+
+    showMoreBtn.addEventListener('click', () => {
+        if (forecastHoursToShow < MAX_FORECAST_HOURS) {
+            forecastHoursToShow += FORECAST_INCREMENT;
+            localStorage.setItem('forecastHoursToShow', forecastHoursToShow);
+            // Re-render the forecast with the existing data
+            const lastData = window.lastWeatherData;
+            if (lastData) processWeatherData(lastData);
+        }
+    });
+
+    showLessBtn.addEventListener('click', () => {
+        if (forecastHoursToShow > FORECAST_INCREMENT) {
+            forecastHoursToShow -= FORECAST_INCREMENT;
+            localStorage.setItem('forecastHoursToShow', forecastHoursToShow);
+            const lastData = window.lastWeatherData;
+            if (lastData) processWeatherData(lastData);
+        }
     });
 
     // --- Geocoding Functions ---
@@ -140,12 +173,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset UI
         forecastBody.innerHTML = '<tr><td colspan="5">Loading forecast...</td></tr>';
 
-        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,shortwave_radiation,windspeed_10m,cloudcover&timezone=auto&forecast_days=1`;
+        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,shortwave_radiation,windspeed_10m,cloudcover&timezone=auto&past_hours=4&forecast_days=2`;
 
         fetch(apiUrl)
             .then(response => response.json())
             .then(data => {
                 if (data.hourly && data.hourly.time) {
+                    window.lastWeatherData = data; // Store data for re-use
                     processWeatherData(data);
                 } else {
                     alert('Could not retrieve weather forecast.');
@@ -162,12 +196,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Find the current hour's index
         const now = new Date();
-        const currentHourIndex = hourly.time.findIndex(t => new Date(t).getHours() === now.getHours());
+        // Find the closest hour in the past, not just the same hour number
+        const nowEpoch = now.getTime();
+        let currentHourIndex = hourly.time.map(t => new Date(t).getTime()).findIndex((timeEpoch, index) => {
+            const nextTimeEpoch = hourly.time[index + 1] ? new Date(hourly.time[index + 1]).getTime() : Infinity;
+            return nowEpoch >= timeEpoch && nowEpoch < nextTimeEpoch;
+        });
+
 
         if (currentHourIndex === -1) {
-            console.error("Could not find current hour in forecast data.");
-            // Fallback to the first hour if current is not found
-            currentHourIndex = 0;
+            console.error("Could not find current hour in forecast data, defaulting to first entry.");
+            currentHourIndex = 0; // Fallback
         }
 
         // Calculate the full day's forecast using the iterative model
@@ -189,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
 
         // Populate forecast table with the new calculated temperatures
-        populateForecastGrid(hourly, cementTemps, asphaltTemps);
+        populateForecastGrid(hourly, cementTemps, asphaltTemps, currentHourIndex);
     }
 
     /**
@@ -327,35 +366,50 @@ document.addEventListener('DOMContentLoaded', () => {
         calcAsphaltTempDiv.innerHTML = `Est. Asphalt: <strong>${asphaltTempF.toFixed(1)}°F</strong> (${asphaltTempC.toFixed(1)}°C)`;
     }
 
-    function populateForecastGrid(hourlyData, cementTemps, asphaltTemps) {
+    function populateForecastGrid(hourlyData, cementTemps, asphaltTemps, currentHourIndex) {
         forecastBody.innerHTML = ''; // Clear previous forecast
         const { time, temperature_2m, cloudcover } = hourlyData;
+        const totalHoursAvailable = time.length;
 
-        time.forEach((timeStr, index) => {
+        // Determine the slice of forecast to show
+        const startIndex = currentHourIndex; // Start from the current hour
+        const endIndex = Math.min(startIndex + forecastHoursToShow, totalHoursAvailable);
+
+        const visibleHours = time.slice(startIndex, endIndex);
+
+        visibleHours.forEach((timeStr, relativeIndex) => {
+            const absoluteIndex = startIndex + relativeIndex;
             const date = new Date(timeStr);
             const hour = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            const airTempC = temperature_2m[index];
+            const airTempC = temperature_2m[absoluteIndex];
             const airTempF = (airTempC * 9/5) + 32;
 
-            const cementTempC = cementTemps[index];
+            const cementTempC = cementTemps[absoluteIndex];
             const cementTempF = (cementTempC * 9/5) + 32;
-            const asphaltTempC = asphaltTemps[index];
+            const asphaltTempC = asphaltTemps[absoluteIndex];
             const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
             const { message, color } = getSafetyInfo(asphaltTempF);
 
             const row = document.createElement('tr');
+            if (absoluteIndex === currentHourIndex) {
+                row.classList.add('current-hour');
+            }
             row.innerHTML = `
                 <td>${hour}</td>
                 <td>${airTempC.toFixed(1)}°C / ${airTempF.toFixed(1)}°F</td>
-                <td>${cloudcover[index]}%</td>
+                <td>${cloudcover[absoluteIndex]}%</td>
                 <td>${cementTempC.toFixed(1)}°C / ${cementTempF.toFixed(1)}°F</td>
                 <td>${asphaltTempC.toFixed(1)}°C / ${asphaltTempF.toFixed(1)}°F</td>
                 <td style="color: ${color};">${message}</td>
             `;
             forecastBody.appendChild(row);
         });
+
+        // Update button visibility
+        showLessBtn.style.display = forecastHoursToShow > FORECAST_INCREMENT ? 'inline-block' : 'none';
+        showMoreBtn.style.display = endIndex < totalHoursAvailable ? 'inline-block' : 'none';
     }
 
     function updateSafetyMessage(asphaltTempF) {

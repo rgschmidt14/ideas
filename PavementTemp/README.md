@@ -5,7 +5,7 @@ This is a simple web application designed to help pet owners determine if the pa
 ## Features
 
 *   **Advanced Temperature Model:** Calculates pavement temperature using a formula that incorporates air temperature, direct solar radiation, and wind speed for greater accuracy.
-*   **Hourly Forecast:** Displays a full-day, hour-by-hour forecast of air and pavement temperatures, complete with safety ratings, so you can plan your walks.
+*   **Extended Hourly Forecast:** Displays an hour-by-hour forecast starting from the current time and extending up to 30 hours into the future. The current hour is highlighted for easy reference, and you can use "Show More" / "Show Less" buttons to expand or collapse the view.
 *   **Interactive "Calculation Explorer":** Adjust the core weather values (air temp, solar radiation, wind speed) to see exactly how they impact the pavement temperature in real-time.
 *   **Location-Based:** Check temperatures by searching for a city or using your device's current location.
 *   **Clear Safety Indicators:** Color-coded messages show you at a glance if the pavement is safe, requires caution, or is dangerous.
@@ -13,12 +13,18 @@ This is a simple web application designed to help pet owners determine if the pa
 ## How to Use
 
 1.  **Enter a location:** Type a city name or click "Use My Location".
-2.  **Review the Forecast:** Check the current conditions and browse the hourly forecast to see how temperatures will change throughout the day.
+2.  **Review the Forecast:** Check the current conditions and browse the hourly forecast. The table starts at the current hour. Use the "Show More" button to see further into the future.
 3.  **Explore the Calculator:** Scroll down to the "Calculation Explorer" to experiment with the values and understand the science behind the estimates.
 
 ---
 
 ## Changelog
+
+**2025-10-04:**
+- **Enhanced Forecast View:**
+    - The forecast now includes data from the past 4 hours and extends up to 30 hours into the future, helping with trend analysis and planning.
+    - The current hour is now highlighted in the forecast grid for quick reference.
+    - Added "Show More" and "Show Less" buttons to control the number of forecast hours displayed (10, 20, or 30 hours). The user's preference is saved locally.
 
 **2025-10-03:**
 - **Major Feature Overhaul:**
