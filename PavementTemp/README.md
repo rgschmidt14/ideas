@@ -20,6 +20,13 @@ This is a simple web application designed to help pet owners determine if the pa
 
 ## Changelog
 
+**2025-10-04 (Nightly Update):**
+- **UI Refinement:** Adjusted the color of the Celsius temperature display to a standard 'grey' for better visual separation from the Fahrenheit temperature.
+
+**2025-10-04 (Evening Update):**
+- **Refined Calculation Algorithm:** Updated the core temperature model to use the *average* of weather conditions over each one-hour interval (e.g., the average of 9:00 AM and 10:00 AM conditions to calculate the temperature at 10:00 AM). This provides a more physically accurate and smoother temperature forecast, especially when weather conditions change rapidly.
+- **Improved Temperature Display:** The Celsius temperature is now displayed in a lighter, gray font and enclosed in parentheses to make the primary Fahrenheit temperature easier to read at a glance for all users.
+
 **2025-10-04:**
 - **Enhanced Forecast View:**
     - The forecast now includes data from the past 4 hours and extends up to 30 hours into the future, helping with trend analysis and planning.
