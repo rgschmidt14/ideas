@@ -25,6 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Forecast Table
     const forecastBody = document.getElementById('forecast-body');
 
+    // --- Physics & Material Constants ---
+    const ASPHALT_ALBEDO = 0.05; // Reflectivity (5%)
+    const CEMENT_ALBEDO = 0.35;  // Reflectivity (35%)
+    // Energy (Joules) to raise 1m^2 of material by 1°C. Higher means more inertia.
+    const ASPHALT_THERMAL_MASS = 100000;
+    const CEMENT_THERMAL_MASS = 120000;
+    const STEFAN_BOLTZMANN = 5.67e-8; // W/m^2/K^4
+    const EMISSIVITY = 0.95; // How effectively the surface radiates heat.
+    const TIME_STEP_SECONDS = 3600; // Each forecast step is 1 hour
+
     // --- Initial State ---
     const lastLocationData = localStorage.getItem('lastLocation');
     if (lastLocationData) {
@@ -148,64 +158,139 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function processWeatherData(data) {
-        const { time, temperature_2m, shortwave_radiation, windspeed_10m, cloudcover } = data.hourly;
+        const { hourly } = data;
 
         // Find the current hour's index
         const now = new Date();
-        const currentHourIndex = time.findIndex(t => new Date(t).getHours() === now.getHours());
+        const currentHourIndex = hourly.time.findIndex(t => new Date(t).getHours() === now.getHours());
 
         if (currentHourIndex === -1) {
             console.error("Could not find current hour in forecast data.");
-            return;
+            // Fallback to the first hour if current is not found
+            currentHourIndex = 0;
         }
 
-        // Update current conditions
-        const currentAirTempC = temperature_2m[currentHourIndex];
-        const currentRadiation = shortwave_radiation[currentHourIndex];
-        const currentWindKmh = windspeed_10m[currentHourIndex];
-        const currentCloudCover = cloudcover[currentHourIndex];
+        // Calculate the full day's forecast using the iterative model
+        const { cementTemps, asphaltTemps } = calculateHourlyPavementTemps(hourly);
 
-        displayCurrentResults(currentAirTempC, currentRadiation, currentWindKmh, currentCloudCover);
-        populateCalculator(currentAirTempC, currentRadiation, currentWindKmh, currentCloudCover);
+        // Update current conditions display using the new calculated forecast
+        const currentAsphaltTempC = asphaltTemps[currentHourIndex];
+        const currentCementTempC = cementTemps[currentHourIndex];
+        const currentCloudCover = hourly.cloudcover[currentHourIndex];
 
-        // Populate forecast table
-        populateForecastGrid(time, temperature_2m, shortwave_radiation, windspeed_10m, cloudcover);
+        displayCurrentResults(currentCementTempC, currentAsphaltTempC, currentCloudCover);
+
+        // Populate the calculator with the weather data for the current hour
+        populateCalculator(
+            hourly.temperature_2m[currentHourIndex],
+            hourly.shortwave_radiation[currentHourIndex],
+            hourly.windspeed_10m[currentHourIndex],
+            hourly.cloudcover[currentHourIndex]
+        );
+
+        // Populate forecast table with the new calculated temperatures
+        populateForecastGrid(hourly, cementTemps, asphaltTemps);
     }
 
-    function calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, surfaceType) {
-        const albedo = surfaceType === 'asphalt' ? 0.05 : 0.30; // Asphalt is dark, cement is lighter
-        const windMs = windKmh / 3.6; // Convert km/h to m/s
+    /**
+     * Calculates the pavement temperature for a single, instantaneous set of conditions.
+     * Used for the "Calculation Explorer" feature.
+     */
+    function calculateInstantaneousPavementTemp(airTempC, radiation, windKmh, cloudCover, surfaceType) {
+        const albedo = surfaceType === 'asphalt' ? ASPHALT_ALBEDO : CEMENT_ALBEDO;
+        const windMs = windKmh / 3.6;
 
-        // Simplified heat transfer coefficient
+        // Simplified heat transfer coefficient for convection
         const h_conv = 5.7 + 3.8 * windMs;
 
-        // --- Nighttime Cooling Calculation ---
-        // If there's no sun, pavement can radiate heat away and become cooler than the air.
-        if (radiation < 5) { // Threshold for "night" or very low sun
-            // Max cooling potential on a clear, calm night (in °C)
+        if (radiation < 5) { // Nighttime simplified model
             const maxCooling = 6.0;
-            // Cloud cover reduces cooling: 0% clouds = full effect, 100% clouds = no effect
             const cloudEffect = 1 - (cloudCover / 100);
-            // Wind reduces cooling by mixing air. Factor goes from 1 (calm) to ~0 (high wind)
             const windFactor = Math.exp(-0.2 * windMs);
-
             const tempDecrease = maxCooling * cloudEffect * windFactor;
             return airTempC - tempDecrease;
         }
 
-        // --- Daytime Heating Calculation ---
-        // During the day, solar radiation is the dominant factor.
+        // Daytime simplified model
         const tempIncrease = ((1 - albedo) * radiation) / h_conv;
-        // Even during the day, there's some radiative cooling, but it's minor compared to solar gain.
-        // For simplicity, we'll use the tempIncrease but ensure it doesn't fall below air temp if sun is out.
         return airTempC + tempIncrease;
     }
 
+    /**
+     * Calculates the full 24-hour pavement temperature forecast using an iterative energy balance model.
+     * @param {object} hourlyData - The `hourly` object from the Open-Meteo API response.
+     * @returns {{cementTemps: number[], asphaltTemps: number[]}}
+     */
+    function calculateHourlyPavementTemps(hourlyData) {
+        const { temperature_2m, shortwave_radiation, windspeed_10m, cloudcover } = hourlyData;
+        const numHours = temperature_2m.length;
+
+        let cementTemps = [temperature_2m[0]];
+        let asphaltTemps = [temperature_2m[0]];
+
+        for (let i = 1; i < numHours; i++) {
+            // --- Calculate for Cement ---
+            const cementT_prev = cementTemps[i - 1];
+            const cementDeltaT = calculateTemperatureChange(
+                cementT_prev,
+                temperature_2m[i],
+                shortwave_radiation[i],
+                windspeed_10m[i],
+                cloudcover[i],
+                CEMENT_ALBEDO,
+                CEMENT_THERMAL_MASS
+            );
+            cementTemps.push(cementT_prev + cementDeltaT);
+
+            // --- Calculate for Asphalt ---
+            const asphaltT_prev = asphaltTemps[i - 1];
+            const asphaltDeltaT = calculateTemperatureChange(
+                asphaltT_prev,
+                temperature_2m[i],
+                shortwave_radiation[i],
+                windspeed_10m[i],
+                cloudcover[i],
+                ASPHALT_ALBEDO,
+                ASPHALT_THERMAL_MASS
+            );
+            asphaltTemps.push(asphaltT_prev + asphaltDeltaT);
+        }
+        return { cementTemps, asphaltTemps };
+    }
+
+    /**
+     * Helper function to calculate the temperature change (ΔT) for one time step.
+     */
+    function calculateTemperatureChange(pavementTempC, airTempC, radiation, windKmh, cloudCover, albedo, thermalMass) {
+        const pavementTempK = pavementTempC + 273.15;
+        const airTempK = airTempC + 273.15;
+
+        // --- Energy In ---
+        const absorbedRadiation = radiation * (1 - albedo); // in W/m^2
+
+        // --- Energy Out ---
+        // 1. Convection
+        const windMs = windKmh / 3.6;
+        const h_conv = 5.7 + 3.8 * windMs; // Convective heat transfer coefficient
+        const convectiveLoss = h_conv * (pavementTempC - airTempC);
+
+        // 2. Radiation
+        // Estimate sky temperature. Brunt's formula is complex, so we use a simplified model.
+        // Clear sky is colder. Cloudy sky is closer to air temp.
+        const cloudFactor = 1 - (cloudCover / 100);
+        const skyTempK = airTempK * Math.pow(0.8 + cloudCover / 400, 0.25); // Simplified sky temp estimation
+        const radiativeLoss = EMISSIVITY * STEFAN_BOLTZMANN * (Math.pow(pavementTempK, 4) - Math.pow(skyTempK, 4));
+
+        // --- Net Energy & Temperature Change ---
+        const netEnergyFlux = absorbedRadiation - convectiveLoss - radiativeLoss; // in W/m^2 (Joules per second per m^2)
+        const totalEnergyJ = netEnergyFlux * TIME_STEP_SECONDS; // Total Joules over the hour
+        const deltaT_C = totalEnergyJ / thermalMass; // Change in temperature in °C
+
+        return deltaT_C;
+    }
 
     // --- UI Update Functions ---
-    function displayCurrentResults(airTempC, radiation, windKmh, cloudCover) {
-        const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'cement');
-        const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'asphalt');
+    function displayCurrentResults(cementTempC, asphaltTempC, cloudCover) {
         const cementTempF = (cementTempC * 9/5) + 32;
         const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
@@ -233,8 +318,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const windKmh = parseFloat(windSpeedInput.value) || 0;
         const cloudCover = parseFloat(cloudCoverInput.value) || 0;
 
-        const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'cement');
-        const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'asphalt');
+        const cementTempC = calculateInstantaneousPavementTemp(airTempC, radiation, windKmh, cloudCover, 'cement');
+        const asphaltTempC = calculateInstantaneousPavementTemp(airTempC, radiation, windKmh, cloudCover, 'asphalt');
         const cementTempF = (cementTempC * 9/5) + 32;
         const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
@@ -242,22 +327,20 @@ document.addEventListener('DOMContentLoaded', () => {
         calcAsphaltTempDiv.innerHTML = `Est. Asphalt: <strong>${asphaltTempF.toFixed(1)}°F</strong> (${asphaltTempC.toFixed(1)}°C)`;
     }
 
-    function populateForecastGrid(times, airTemps, radiations, winds, cloudcovers) {
+    function populateForecastGrid(hourlyData, cementTemps, asphaltTemps) {
         forecastBody.innerHTML = ''; // Clear previous forecast
+        const { time, temperature_2m, cloudcover } = hourlyData;
 
-        times.forEach((timeStr, index) => {
+        time.forEach((timeStr, index) => {
             const date = new Date(timeStr);
             const hour = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-            const airTempC = airTemps[index];
+            const airTempC = temperature_2m[index];
             const airTempF = (airTempC * 9/5) + 32;
-            const cloudCover = cloudcovers[index];
-            const radiation = radiations[index];
-            const windKmh = winds[index];
 
-            const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'cement');
+            const cementTempC = cementTemps[index];
             const cementTempF = (cementTempC * 9/5) + 32;
-            const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'asphalt');
+            const asphaltTempC = asphaltTemps[index];
             const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
             const { message, color } = getSafetyInfo(asphaltTempF);
@@ -266,7 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
             row.innerHTML = `
                 <td>${hour}</td>
                 <td>${airTempC.toFixed(1)}°C / ${airTempF.toFixed(1)}°F</td>
-                <td>${cloudCover}%</td>
+                <td>${cloudcover[index]}%</td>
                 <td>${cementTempC.toFixed(1)}°C / ${cementTempF.toFixed(1)}°F</td>
                 <td>${asphaltTempC.toFixed(1)}°C / ${asphaltTempF.toFixed(1)}°F</td>
                 <td style="color: ${color};">${message}</td>
