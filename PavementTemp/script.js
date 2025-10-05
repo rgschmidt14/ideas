@@ -255,47 +255,56 @@ document.addEventListener('DOMContentLoaded', () => {
         return airTempC + tempIncrease;
     }
 
-    /**
-     * Calculates the full 24-hour pavement temperature forecast using an iterative energy balance model.
-     * @param {object} hourlyData - The `hourly` object from the Open-Meteo API response.
-     * @returns {{cementTemps: number[], asphaltTemps: number[]}}
-     */
-    function calculateHourlyPavementTemps(hourlyData) {
-        const { temperature_2m, shortwave_radiation, windspeed_10m, cloudcover } = hourlyData;
-        const numHours = temperature_2m.length;
+/**
+ * Calculates the full 24-hour pavement temperature forecast using an iterative energy balance model.
+ * This version uses AVERAGED weather conditions over each time step for a more accurate simulation.
+ * @param {object} hourlyData - The `hourly` object from the Open-Meteo API response.
+ * @returns {{cementTemps: number[], asphaltTemps: number[]}}
+ */
+function calculateHourlyPavementTemps(hourlyData) {
+    const { temperature_2m, shortwave_radiation, windspeed_10m, cloudcover } = hourlyData;
+    const numHours = temperature_2m.length;
 
-        let cementTemps = [temperature_2m[0]];
-        let asphaltTemps = [temperature_2m[0]];
+    // Initialize the starting pavement temperatures from the first data point (which is in the past).
+    // This provides a "run-up" period for the simulation to stabilize.
+    let cementTemps = [temperature_2m[0]];
+    let asphaltTemps = [temperature_2m[0]];
 
-        for (let i = 1; i < numHours; i++) {
-            // --- Calculate for Cement ---
-            const cementT_prev = cementTemps[i - 1];
-            const cementDeltaT = calculateTemperatureChange(
-                cementT_prev,
-                temperature_2m[i],
-                shortwave_radiation[i],
-                windspeed_10m[i],
-                cloudcover[i],
-                CEMENT_ALBEDO,
-                CEMENT_THERMAL_MASS
-            );
-            cementTemps.push(cementT_prev + cementDeltaT);
+    for (let i = 1; i < numHours; i++) {
+        // --- Calculate average conditions for the interval between (i-1) and (i) ---
+        const avgAirTemp = (temperature_2m[i - 1] + temperature_2m[i]) / 2;
+        const avgRadiation = (shortwave_radiation[i - 1] + shortwave_radiation[i]) / 2;
+        const avgWindspeed = (windspeed_10m[i - 1] + windspeed_10m[i]) / 2;
+        const avgCloudcover = (cloudcover[i - 1] + cloudcover[i]) / 2;
 
-            // --- Calculate for Asphalt ---
-            const asphaltT_prev = asphaltTemps[i - 1];
-            const asphaltDeltaT = calculateTemperatureChange(
-                asphaltT_prev,
-                temperature_2m[i],
-                shortwave_radiation[i],
-                windspeed_10m[i],
-                cloudcover[i],
-                ASPHALT_ALBEDO,
-                ASPHALT_THERMAL_MASS
-            );
-            asphaltTemps.push(asphaltT_prev + asphaltDeltaT);
-        }
-        return { cementTemps, asphaltTemps };
+        // --- Calculate temperature change for Cement using AVERAGED data ---
+        const cementT_prev = cementTemps[i - 1];
+        const cementDeltaT = calculateTemperatureChange(
+            cementT_prev,
+            avgAirTemp,
+            avgRadiation,
+            avgWindspeed,
+            avgCloudcover,
+            CEMENT_ALBEDO,
+            CEMENT_THERMAL_MASS
+        );
+        cementTemps.push(cementT_prev + cementDeltaT);
+
+        // --- Calculate temperature change for Asphalt using AVERAGED data ---
+        const asphaltT_prev = asphaltTemps[i - 1];
+        const asphaltDeltaT = calculateTemperatureChange(
+            asphaltT_prev,
+            avgAirTemp,
+            avgRadiation,
+            avgWindspeed,
+            avgCloudcover,
+            ASPHALT_ALBEDO,
+            ASPHALT_THERMAL_MASS
+        );
+        asphaltTemps.push(asphaltT_prev + asphaltDeltaT);
     }
+    return { cementTemps, asphaltTemps };
+}
 
     /**
      * Helper function to calculate the temperature change (ΔT) for one time step.
@@ -333,8 +342,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const cementTempF = (cementTempC * 9/5) + 32;
         const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
-        cementTempDiv.innerHTML = `Est. Cement Temp: <strong>${cementTempF.toFixed(1)}°F</strong> (${cementTempC.toFixed(1)}°C)`;
-        asphaltTempDiv.innerHTML = `Est. Asphalt Temp: <strong>${asphaltTempF.toFixed(1)}°F</strong> (${asphaltTempC.toFixed(1)}°C)`;
+        cementTempDiv.innerHTML = `Est. Cement Temp: <strong>${cementTempF.toFixed(1)}°F</strong> <span class="celsius">(${cementTempC.toFixed(1)}°C)</span>`;
+        asphaltTempDiv.innerHTML = `Est. Asphalt Temp: <strong>${asphaltTempF.toFixed(1)}°F</strong> <span class="celsius">(${asphaltTempC.toFixed(1)}°C)</span>`;
         cloudCoverDiv.innerHTML = `Cloud Cover: <strong>${cloudCover}%</strong>`;
 
         updateSafetyMessage(asphaltTempF);
@@ -362,8 +371,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const cementTempF = (cementTempC * 9/5) + 32;
         const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
-        calcCementTempDiv.innerHTML = `Est. Cement: <strong>${cementTempF.toFixed(1)}°F</strong> (${cementTempC.toFixed(1)}°C)`;
-        calcAsphaltTempDiv.innerHTML = `Est. Asphalt: <strong>${asphaltTempF.toFixed(1)}°F</strong> (${asphaltTempC.toFixed(1)}°C)`;
+        calcCementTempDiv.innerHTML = `Est. Cement: <strong>${cementTempF.toFixed(1)}°F</strong> <span class="celsius">(${cementTempC.toFixed(1)}°C)</span>`;
+        calcAsphaltTempDiv.innerHTML = `Est. Asphalt: <strong>${asphaltTempF.toFixed(1)}°F</strong> <span class="celsius">(${asphaltTempC.toFixed(1)}°C)</span>`;
     }
 
     function populateForecastGrid(hourlyData, cementTemps, asphaltTemps, currentHourIndex) {
@@ -398,10 +407,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             row.innerHTML = `
                 <td>${hour}</td>
-                <td>${airTempC.toFixed(1)}°C / ${airTempF.toFixed(1)}°F</td>
+                <td>${airTempF.toFixed(1)}°F <span class="celsius">(${airTempC.toFixed(1)}°C)</span></td>
                 <td>${cloudcover[absoluteIndex]}%</td>
-                <td>${cementTempC.toFixed(1)}°C / ${cementTempF.toFixed(1)}°F</td>
-                <td>${asphaltTempC.toFixed(1)}°C / ${asphaltTempF.toFixed(1)}°F</td>
+                <td>${cementTempF.toFixed(1)}°F <span class="celsius">(${cementTempC.toFixed(1)}°C)</span></td>
+                <td>${asphaltTempF.toFixed(1)}°F <span class="celsius">(${asphaltTempC.toFixed(1)}°C)</span></td>
                 <td style="color: ${color};">${message}</td>
             `;
             forecastBody.appendChild(row);
