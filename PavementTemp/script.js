@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset UI
         forecastBody.innerHTML = '<tr><td colspan="5">Loading forecast...</td></tr>';
 
-        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,shortwave_radiation,windspeed_10m,cloudcover&timezone=auto&past_hours=4&forecast_days=2`;
+        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,shortwave_radiation,windspeed_10m,cloudcover,uv_index&timezone=auto&past_hours=4&forecast_days=2`;
 
         fetch(apiUrl)
             .then(response => response.json())
@@ -377,7 +377,7 @@ function calculateHourlyPavementTemps(hourlyData) {
 
     function populateForecastGrid(hourlyData, cementTemps, asphaltTemps, currentHourIndex) {
         forecastBody.innerHTML = ''; // Clear previous forecast
-        const { time, temperature_2m, cloudcover } = hourlyData;
+        const { time, temperature_2m, cloudcover, uv_index } = hourlyData;
         const totalHoursAvailable = time.length;
 
         // Determine the slice of forecast to show
@@ -408,7 +408,7 @@ function calculateHourlyPavementTemps(hourlyData) {
             row.innerHTML = `
                 <td>${hour}</td>
                 <td>${airTempF.toFixed(1)}°F <span class="celsius">(${airTempC.toFixed(1)}°C)</span></td>
-                <td>${cloudcover[absoluteIndex]}%</td>
+                <td>${cloudcover[absoluteIndex]}% <span class="celsius">(${uv_index[absoluteIndex]})</span></td>
                 <td>${cementTempF.toFixed(1)}°F <span class="celsius">(${cementTempC.toFixed(1)}°C)</span></td>
                 <td>${asphaltTempF.toFixed(1)}°F <span class="celsius">(${asphaltTempC.toFixed(1)}°C)</span></td>
                 <td style="color: ${color};">${message}</td>
