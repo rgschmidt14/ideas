@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const airTempInput = document.getElementById('airTempInput');
     const solarRadiationInput = document.getElementById('solarRadiationInput');
     const windSpeedInput = document.getElementById('windSpeedInput');
+    const cloudCoverInput = document.getElementById('cloudCoverInput');
     const calcCementTempDiv = document.getElementById('calc-cement-temp');
     const calcAsphaltTempDiv = document.getElementById('calc-asphalt-temp');
 
@@ -49,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     locationInput.addEventListener('input', handleLocationInput);
 
-    [airTempInput, solarRadiationInput, windSpeedInput].forEach(input => {
+    [airTempInput, solarRadiationInput, windSpeedInput, cloudCoverInput].forEach(input => {
         input.addEventListener('input', updateCalculator);
     });
 
@@ -165,32 +166,46 @@ document.addEventListener('DOMContentLoaded', () => {
         const currentCloudCover = cloudcover[currentHourIndex];
 
         displayCurrentResults(currentAirTempC, currentRadiation, currentWindKmh, currentCloudCover);
-        populateCalculator(currentAirTempC, currentRadiation, currentWindKmh);
+        populateCalculator(currentAirTempC, currentRadiation, currentWindKmh, currentCloudCover);
 
         // Populate forecast table
         populateForecastGrid(time, temperature_2m, shortwave_radiation, windspeed_10m, cloudcover);
     }
 
-    function calculatePavementTemp(airTempC, radiation, windKmh, surfaceType) {
+    function calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, surfaceType) {
         const albedo = surfaceType === 'asphalt' ? 0.05 : 0.30; // Asphalt is dark, cement is lighter
         const windMs = windKmh / 3.6; // Convert km/h to m/s
 
         // Simplified heat transfer coefficient
         const h_conv = 5.7 + 3.8 * windMs;
 
-        // If there's no sun or it's night, radiation effect is minimal.
-        if (radiation <= 0) {
-            return airTempC; // At night, pavement temp is close to air temp.
+        // --- Nighttime Cooling Calculation ---
+        // If there's no sun, pavement can radiate heat away and become cooler than the air.
+        if (radiation < 5) { // Threshold for "night" or very low sun
+            // Max cooling potential on a clear, calm night (in °C)
+            const maxCooling = 6.0;
+            // Cloud cover reduces cooling: 0% clouds = full effect, 100% clouds = no effect
+            const cloudEffect = 1 - (cloudCover / 100);
+            // Wind reduces cooling by mixing air. Factor goes from 1 (calm) to ~0 (high wind)
+            const windFactor = Math.exp(-0.2 * windMs);
+
+            const tempDecrease = maxCooling * cloudEffect * windFactor;
+            return airTempC - tempDecrease;
         }
 
+        // --- Daytime Heating Calculation ---
+        // During the day, solar radiation is the dominant factor.
         const tempIncrease = ((1 - albedo) * radiation) / h_conv;
+        // Even during the day, there's some radiative cooling, but it's minor compared to solar gain.
+        // For simplicity, we'll use the tempIncrease but ensure it doesn't fall below air temp if sun is out.
         return airTempC + tempIncrease;
     }
 
+
     // --- UI Update Functions ---
     function displayCurrentResults(airTempC, radiation, windKmh, cloudCover) {
-        const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, 'cement');
-        const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, 'asphalt');
+        const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'cement');
+        const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'asphalt');
         const cementTempF = (cementTempC * 9/5) + 32;
         const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
@@ -204,10 +219,11 @@ document.addEventListener('DOMContentLoaded', () => {
         lastUpdatedSpan.textContent = `Last updated: ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
     }
 
-    function populateCalculator(airTempC, radiation, windKmh) {
+    function populateCalculator(airTempC, radiation, windKmh, cloudCover) {
         airTempInput.value = airTempC.toFixed(1);
         solarRadiationInput.value = radiation.toFixed(0);
         windSpeedInput.value = windKmh.toFixed(1);
+        cloudCoverInput.value = cloudCover.toFixed(0);
         updateCalculator();
     }
 
@@ -215,9 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const airTempC = parseFloat(airTempInput.value) || 0;
         const radiation = parseFloat(solarRadiationInput.value) || 0;
         const windKmh = parseFloat(windSpeedInput.value) || 0;
+        const cloudCover = parseFloat(cloudCoverInput.value) || 0;
 
-        const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, 'cement');
-        const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, 'asphalt');
+        const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'cement');
+        const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'asphalt');
         const cementTempF = (cementTempC * 9/5) + 32;
         const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
@@ -235,10 +252,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const airTempC = airTemps[index];
             const airTempF = (airTempC * 9/5) + 32;
             const cloudCover = cloudcovers[index];
+            const radiation = radiations[index];
+            const windKmh = winds[index];
 
-            const cementTempC = calculatePavementTemp(airTempC, radiations[index], winds[index], 'cement');
+            const cementTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'cement');
             const cementTempF = (cementTempC * 9/5) + 32;
-            const asphaltTempC = calculatePavementTemp(airTempC, radiations[index], winds[index], 'asphalt');
+            const asphaltTempC = calculatePavementTemp(airTempC, radiation, windKmh, cloudCover, 'asphalt');
             const asphaltTempF = (asphaltTempC * 9/5) + 32;
 
             const { message, color } = getSafetyInfo(asphaltTempF);

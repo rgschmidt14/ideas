@@ -36,6 +36,8 @@
                 <input type="number" id="solarRadiationInput" step="10">
                 <label for="windSpeedInput">Wind Speed (km/h):</label>
                 <input type="number" id="windSpeedInput" step="1">
+                <label for="cloudCoverInput">Cloud Cover (%):</label>
+                <input type="number" id="cloudCoverInput" step="1" min="0" max="100">
             </div>
             <div class="calc-results">
                 <div id="calc-cement-temp"></div>
@@ -65,13 +67,15 @@
 
     <div class="info-container">
         <h2>How it Works (The "Gee-Wiz" Info)</h2>
-        <p>This tool estimates pavement temperature using a formula that considers three key factors from weather data:</p>
+        <p>This tool estimates pavement temperature using a formula that considers four key factors from weather data:</p>
         <ul>
             <li><strong>Air Temperature:</strong> The baseline temperature.</li>
-            <li><strong>Solar Radiation:</strong> This is the most important factor for surface heating. It measures the amount of solar energy hitting the ground. A high value means intense, direct sunlight (a clear day), while a low value means clouds are blocking the sun's energy. This is how the calculation accounts for sunny vs. cloudy conditions.</li>
-            <li><strong>Wind Speed:</strong> Wind helps to cool the pavement surface, similar to how blowing on hot food cools it down.</li>
+            <li><strong>Solar Radiation:</strong> During the day, the sun's energy is the most important factor for heating the pavement. A high value means intense, direct sunlight.</li>
+            <li><strong>Wind Speed:</strong> Wind helps to cool the pavement surface through convection, similar to how blowing on hot food cools it down.</li>
+            <li><strong>Cloud Cover:</strong> At night, the pavement loses heat by radiating it towards the sky (longwave radiation). Clouds act like a blanket, trapping this heat. A clear, cloudless night (0% cloud cover) allows for maximum cooling, potentially making the pavement colder than the air. A fully overcast night (100% cloud cover) will keep the pavement temperature closer to the air temperature.</li>
         </ul>
         <p>Darker surfaces like asphalt absorb much more of the sun's energy (low albedo) and get hotter than lighter surfaces like cement. The "Calculation Explorer" lets you see this relationship in action!</p>
+        <p>The calculation is based on principles of heat transfer, adapted from models used in pavement engineering. The formula balances incoming solar energy with heat lost to the air (convection) and sky (radiation).</p>
         <h3>Safety Thresholds:</h3>
         <ul>
             <li><strong>< 110°F (43°C):</strong> Generally safe for paws and feet.</li>
@@ -79,7 +83,7 @@
             <li><strong>> 130°F (54°C):</strong> DANGEROUS. Pavement at this temperature can cause burns in as little as 60 seconds. Avoid walking pets on pavement.</li>
         </ul>
         <p><strong>Disclaimer:</strong> This tool provides an estimate for informational purposes only. Always use your best judgment and check the pavement yourself before walking your pet.</p>
-        <p class="sources">Sources: <a href="https://www.fourpawsusa.org/our-stories/publications-guides/hot-asphalt-a-danger-to-your-dogs-paws" target="_blank">Four Paws USA</a>, <a href="https://www.thesprucepets.com/what-you-need-to-know-about-walking-your-dog-on-hot-pavement-4766583" target="_blank">The Spruce Pets</a></p>
+        <p class="sources">Sources: Methodology adapted from the <a href="https://www.dot.state.mn.us/app/pavecool/help.html" target="_blank">MnDOT PaveCool model</a>. Safety thresholds from <a href="https://www.fourpawsusa.org/our-stories/publications-guides/hot-asphalt-a-danger-to-your-dogs-paws" target="_blank">Four Paws USA</a>, <a href="https://www.thesprucepets.com/what-you-need-to-know-about-walking-your-dog-on-hot-pavement-4766583" target="_blank">The Spruce Pets</a>.</p>
     </div>
 
     <script src="script.js"></script>
