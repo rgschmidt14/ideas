@@ -20,6 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Forecast Table
     const forecastBody = document.getElementById('forecast-body');
+    const showMoreBtn = document.getElementById('showMoreBtn');
+    const showLessBtn = document.getElementById('showLessBtn');
+
+    // --- App State ---
+    let forecastHoursToShow = 10; // Initial number of hours to show
+    const FORECAST_INCREMENT = 10; // How many hours to add/remove
+    const MAX_FORECAST_HOURS = 30;
 
     // --- Skin Type Data (Fitzpatrick scale) ---
     // Minutes of sun exposure to receive 1 MED (Minimal Erythemal Dose)
@@ -46,6 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Error parsing lastLocation from localStorage:", error);
         }
     }
+    // Load user's forecast preference
+    const savedHours = localStorage.getItem('forecastHoursToShow');
+    if (savedHours) {
+        forecastHoursToShow = parseInt(savedHours, 10);
+    }
 
     // --- Event Listeners ---
     checkUVBtn.addEventListener('click', () => {
@@ -70,6 +82,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 processWeatherData(lastData);
             }
         });
+    });
+
+    showMoreBtn.addEventListener('click', () => {
+        if (forecastHoursToShow < MAX_FORECAST_HOURS) {
+            forecastHoursToShow += FORECAST_INCREMENT;
+            localStorage.setItem('forecastHoursToShow', forecastHoursToShow);
+            const lastData = window.lastWeatherData;
+            if (lastData) processWeatherData(lastData);
+        }
+    });
+
+    showLessBtn.addEventListener('click', () => {
+        if (forecastHoursToShow > FORECAST_INCREMENT) {
+            forecastHoursToShow -= FORECAST_INCREMENT;
+            localStorage.setItem('forecastHoursToShow', forecastHoursToShow);
+            const lastData = window.lastWeatherData;
+            if (lastData) processWeatherData(lastData);
+        }
     });
 
 
@@ -141,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Weather & Calculation Functions ---
     function getWeatherByCoords(lat, lon) {
         forecastBody.innerHTML = '<tr><td colspan="4">Loading forecast...</td></tr>';
-        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=uv_index&timezone=auto&forecast_days=1`;
+        const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=uv_index&timezone=auto&past_hours=4&forecast_days=2`;
 
         fetch(apiUrl)
             .then(response => response.json())
@@ -162,14 +192,22 @@ document.addEventListener('DOMContentLoaded', () => {
     function processWeatherData(data) {
         const { time, uv_index } = data.hourly;
         const now = new Date();
-        const currentHourIndex = time.findIndex(t => new Date(t).getHours() === now.getHours());
+        // Find the closest hour in the past, not just the same hour number
+        const nowEpoch = now.getTime();
+        let currentHourIndex = time.map(t => new Date(t).getTime()).findIndex((timeEpoch, index) => {
+            const nextTimeEpoch = time[index + 1] ? new Date(time[index + 1]).getTime() : Infinity;
+            return nowEpoch >= timeEpoch && nowEpoch < nextTimeEpoch;
+        });
 
-        if (currentHourIndex === -1) return;
+        if (currentHourIndex === -1) {
+            console.error("Could not find current hour in forecast data, defaulting to first entry.");
+            currentHourIndex = 0; // Fallback
+        }
 
         const currentUvIndex = uv_index[currentHourIndex];
         displayCurrentResults(currentUvIndex);
         populateCalculator(currentUvIndex);
-        populateForecastGrid(time, uv_index);
+        populateForecastGrid(time, uv_index, currentHourIndex);
     }
 
     function calculateTimeToBurn(uvIndex, skinType) {
@@ -205,18 +243,29 @@ document.addEventListener('DOMContentLoaded', () => {
         calcTimeToBurnDiv.innerHTML = `Est. Time to Burn: <strong>${formatTimeToBurn(timeToBurn)}</strong>`;
     }
 
-    function populateForecastGrid(times, uvIndexes) {
+    function populateForecastGrid(times, uvIndexes, currentHourIndex) {
         forecastBody.innerHTML = '';
         const skinType = skinTypeSelect.value;
+        const totalHoursAvailable = times.length;
 
-        times.forEach((timeStr, index) => {
+        // Determine the slice of forecast to show
+        const startIndex = currentHourIndex;
+        const endIndex = Math.min(startIndex + forecastHoursToShow, totalHoursAvailable);
+
+        const visibleHours = times.slice(startIndex, endIndex);
+
+        visibleHours.forEach((timeStr, relativeIndex) => {
+            const absoluteIndex = startIndex + relativeIndex;
             const date = new Date(timeStr);
             const hour = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const uvIndex = uvIndexes[index];
+            const uvIndex = uvIndexes[absoluteIndex];
             const timeToBurn = calculateTimeToBurn(uvIndex, skinType);
             const { message, color } = getRiskInfo(uvIndex);
 
             const row = document.createElement('tr');
+            if (absoluteIndex === currentHourIndex) {
+                row.classList.add('current-hour');
+            }
             row.innerHTML = `
                 <td>${hour}</td>
                 <td>${uvIndex.toFixed(1)}</td>
@@ -225,6 +274,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             forecastBody.appendChild(row);
         });
+
+        // Update button visibility
+        showLessBtn.style.display = forecastHoursToShow > FORECAST_INCREMENT ? 'inline-block' : 'none';
+        showMoreBtn.style.display = endIndex < totalHoursAvailable ? 'inline-block' : 'none';
     }
 
     function updateSafetyMessage(uvIndex) {
