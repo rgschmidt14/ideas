@@ -4,20 +4,39 @@ Map your life's skill tree.
 
 ## Project Vision
 
-Xenophile aims to be a comprehensive tool for personal growth and skill acquisition, capable of guiding a user from learning the most basic actions (like walking) to mastering highly complex and specialized skills (like performing a trick dunk in basketball or delivering a flawless academic dissertation). The core idea is to map out the entire "skill tree" of life, showing how abilities build upon one another.
+Xenophile is envisioned as a universal, comprehensive map for personal growth and skill acquisition. The ultimate goal is to create a tool so thorough that it can guide a user from learning the most basic human actions (like walking or thinking) to mastering highly complex, specialized, and even esoteric abilities (like performing a trick dunk in basketball, delivering a flawless academic dissertation, or mastering a niche craft).
+
+We aim to build a "skill tree for life," where any skill or faculty a person might want to learn is documented with step-by-step learning paths, integrated testing or "pass-off" systems, and curated links to external resources. This will show how all abilities are interconnected, building upon one another in a clear, visual hierarchy.
 
 The system is built on two fundamental concepts:
-- **Skills:** The actions and abilities a person can learn and perform. Each skill will have its own leveling system (from 0 for complete inability to 5 for world-class mastery) to track progress.
+- **Skills:** The actions and abilities a person can learn and perform. Each skill has its own leveling system (from 0 for complete inability to 5 for world-class mastery) to track progress.
 - **Faculties:** The tools, innate talents, or external resources required to perform a skill. A faculty could be a physical object (a basketball, a magic wand), a biological trait (wings, opposable thumbs), or even an abstract concept (priesthood authority, a gift for a friend).
 
-Ultimately, this skill tree will serve as the foundation for a real-world, interactive Tabletop RPG, where players can track their character's development and even apply it to their own lives.
+Ultimately, this living skill tree will serve as the foundation for a real-world, interactive Tabletop RPG, where players can track their character's development and even apply it to their own lives.
 
-## Description
+## How It Works
 
-Xenophile is a tool that allows you to create skills and link them together in a skill tree. New skills are formed by combining two prerequisite skills or "faculties". The goal is to create a complex and interconnected web of abilities from a set of basic building blocks.
+Xenophile is currently a client-side web application, meaning all data is stored locally in your browser and no internet connection is required to use it.
+
+- **Data Storage:** The entire skill tree, including all your custom skills and faculties, is stored in the browser's `localStorage`. The data is a single JSON object containing two main arrays: `skills` and `faculties`. This makes the application fast and private, but it also means you should use the **Export** feature regularly to back up your data.
+- **Core Concepts & Data Integrity:**
+    - **Tier System:** Each item has a `tier`. Tier 0 items have no prerequisites. The tier of any other item is automatically calculated to be one higher than its highest-tier prerequisite. This logic is handled by the `updateAllDependentTiers()` function, which runs after any change to ensure the tree's structure remains sound.
+    - **Prerequisites:** Items can require up to two prerequisites. When creating a new item, you can specify not just *which* item is required, but also what *level* of mastery is needed in that prerequisite.
+    - **Data Migration:** The application includes a migration function in `loadData()` that automatically updates older data structures to the latest format, ensuring backward compatibility if the data model changes in future updates.
+- **Rendering:** The application uses pure JavaScript to render the skill tree dynamically based on the stored data.
+    - **`createSkillCard()`:** This is the core rendering function. It generates the HTML for each individual item card, including its title, description, prerequisites, and controls.
+    - **View Modes:** There are three ways to view the tree:
+        1.  **Alphabetical:** A simple, multi-column layout that groups items by Tier and then sorts them alphabetically.
+        2.  **V-Tree (Vertical):** A top-down genealogical tree that visualizes dependencies.
+        3.  **H-Tree (Horizontal):** A left-to-right version of the tree view.
+    - **SVG Connectors:** In the tree views, SVG lines are drawn dynamically between parent and child nodes to make the relationships clear.
 
 ## Future Ideas (To-Do List)
 
+- [ ] **Centralized Search & Navigation:** Overhaul the UX to be search-first, allowing users to find an item and then explore its dependency tree in a focused view.
+- [ ] **Skill "Pass-Off" System:** Develop a mechanism or checklist to test if a user has learned a skill to a certain level.
+- [ ] **More complex prerequisite rules** (e.g., more than 2, OR conditions).
+- [ ] **Sharing skill trees** with others.
 - [x] Advanced graphical visualization of the skill tree.
 - [x] **Skill Leveling System:** Implement a 0-5 leveling system for each skill and faculty to track user proficiency. (Done 2025-10-02)
 - [x] **Prerequisite Levels:** Allow specifying the required level of a prerequisite to unlock Level 1 of a new skill (e.g., "Palm Basketball (Level 3)" is needed for "Dunk (Level 1)"). (Done 2025-10-02)
@@ -26,9 +45,7 @@ Xenophile is a tool that allows you to create skills and link them together in a
 - [x] **Embedded Links:** Create an easy way to add and display hyperlinks (e.g., to YouTube tutorials or articles) within skill descriptions. (Done 2025-10-02)
 - [x] **Ability to export/import skill trees.** (Done 2025-10-02)
 - [x] **A "discovery" mode** where you can only see skills you have the prerequisites for. (Done 2025-10-02)
-- [ ] **Skill "Pass-Off" System:** Develop a mechanism or checklist to test if a user has learned a skill to a certain level.
-- [ ] **More complex prerequisite rules** (e.g., more than 2, OR conditions).
-- [ ] **Sharing skill trees** with others.
+
 
 ## AI Suggestions
 
@@ -55,6 +72,10 @@ Here are a few technical suggestions to help bring the vision to life:
 ---
 
 ## Changelog
+
+**2025-10-08:**
+- **UI Cleanup (Card Header):** Reworked the header on each item card. Removed the `[+] Lvl [-]` controls and replaced them with a static display of the item's type and tier (e.g., "Skill (3)" or "Faculty (0)"). This provides a cleaner look and emphasizes the item's classification over its current level.
+- **UI Feature (Expandable Descriptions):** Added a "Show/Hide Details" link to each card. This toggles a new section that displays all five level descriptions for the item, providing deep information on demand without cluttering the primary interface.
 
 **2025-10-02 (Evening):**
 - **UI Overhaul:** The application now features a full-width layout to better accommodate large skill trees and has a more modern, consistent design. The subtitle has also been updated to better reflect the project's vision.

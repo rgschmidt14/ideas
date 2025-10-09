@@ -655,34 +655,14 @@ function changeItemLevel(itemId, delta) {
     const cardTitle = document.createElement('h3');
     cardTitle.textContent = item.name;
 
-    // --- Level Display and Controls ---
-    const levelContainer = document.createElement('div');
-    levelContainer.className = 'level-container';
-
-    const levelDownBtn = document.createElement('button');
-    levelDownBtn.className = 'level-btn';
-    levelDownBtn.textContent = '−';
-    levelDownBtn.onclick = () => changeItemLevel(item.id, -1);
-
-    const levelDisplay = document.createElement('span');
-    levelDisplay.className = 'level-display';
-    levelDisplay.textContent = `Lvl ${item.level || 0}`;
-
-    const levelUpBtn = document.createElement('button');
-    levelUpBtn.className = 'level-btn';
-    levelUpBtn.textContent = '+';
-    levelUpBtn.onclick = () => changeItemLevel(item.id, 1);
-
-    levelContainer.appendChild(levelDownBtn);
-    levelContainer.appendChild(levelDisplay);
-    levelContainer.appendChild(levelUpBtn);
+    // --- New Type and Tier Display ---
+    const cardTierDisplay = document.createElement('div');
+    cardTierDisplay.className = 'card-tier-display';
+    const typeCapitalized = item.type.charAt(0).toUpperCase() + item.type.slice(1);
+    cardTierDisplay.textContent = `${typeCapitalized} (${item.tier})`;
 
     titleContainer.appendChild(cardTitle);
-    titleContainer.appendChild(levelContainer);
-
-        const cardType = document.createElement('p');
-        cardType.className = 'skill-type';
-        cardType.textContent = `Type: ${item.type.charAt(0).toUpperCase() + item.type.slice(1)}`;
+    titleContainer.appendChild(cardTierDisplay);
 
         const cardDescription = document.createElement('p');
     const descriptionText = item.level > 0 && item.levelDescriptions[item.level]
@@ -722,7 +702,6 @@ function changeItemLevel(itemId, delta) {
         cardControls.appendChild(deleteBtn);
 
     card.appendChild(titleContainer);
-        card.appendChild(cardType);
         card.appendChild(cardDescription);
 
         if (item.prerequisites && item.prerequisites.length > 0) {
@@ -743,6 +722,34 @@ function changeItemLevel(itemId, delta) {
             card.appendChild(prereqList);
         }
 
+        // --- Expandable Level Descriptions ---
+        const detailsContainer = document.createElement('div');
+        detailsContainer.className = 'details-container';
+        detailsContainer.style.display = 'none'; // Initially hidden
+
+        const levelList = document.createElement('ul');
+        levelList.className = 'level-descriptions-list';
+        for (let i = 1; i <= 5; i++) {
+            const li = document.createElement('li');
+            const desc = item.levelDescriptions[i];
+            li.innerHTML = `<strong>Lvl ${i}:</strong> ${desc ? desc.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>') : '<em>No description.</em>'}`;
+            levelList.appendChild(li);
+        }
+        detailsContainer.appendChild(levelList);
+
+        const showDetailsLink = document.createElement('a');
+        showDetailsLink.href = '#';
+        showDetailsLink.className = 'show-details-link';
+        showDetailsLink.textContent = 'Show Details...';
+        showDetailsLink.onclick = (e) => {
+            e.preventDefault();
+            const isHidden = detailsContainer.style.display === 'none';
+            detailsContainer.style.display = isHidden ? 'block' : 'none';
+            showDetailsLink.textContent = isHidden ? 'Hide Details' : 'Show Details...';
+        };
+
+        card.appendChild(detailsContainer);
+        card.appendChild(showDetailsLink);
         card.appendChild(cardControls);
         return card;
     }
