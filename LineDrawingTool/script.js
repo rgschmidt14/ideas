@@ -101,61 +101,94 @@ document.addEventListener("DOMContentLoaded", function() {
     // Stack for redo actions
     let redoStack = [];
 
-    // Function to save current state to session storage
-    function saveToSessionStorage() {
-        const state = {};
-
-        if (typeof chartData !== 'undefined') {
-            state.chartData = chartData;
-        }
-
-        if (typeof numberOfBends !== 'undefined') {
-            state.numberOfBends = numberOfBends;
-        }
-
-
-        if (config && config.options && config.options.scales) {
-            state.xMin = config.options.scales.x.min;
-            state.xMax = config.options.scales.x.max;
-            state.yMin = config.options.scales.y.min;
-            state.yMax = config.options.scales.y.max;
-        }
-
-
-        sessionStorage.setItem('graphState', JSON.stringify(state));
+    // Function to save current state to local storage
+    function saveState() {
+        const state = {
+            chartData: chartData,
+            regressionType: document.getElementById("regression-type").value,
+            polynomialDegree: document.getElementById("polynomial-degree").value,
+            graphName: document.getElementById("graph-name").value,
+            axis: {
+                xMin: config.options.scales.x.min,
+                xMax: config.options.scales.x.max,
+                yMin: config.options.scales.y.min,
+                yMax: config.options.scales.y.max,
+                xInterval: document.getElementById("xInterval").value,
+                yInterval: document.getElementById("yInterval").value
+            },
+            colors: {
+                pointColor: document.getElementById("point-color").value,
+                lineColor: document.getElementById("line-color").value
+            },
+            ui: {
+                size: document.getElementById("ui-size").value,
+                lineThickness: document.getElementById("line-thickness").value
+            }
+        };
+        localStorage.setItem('lineTool', JSON.stringify(state));
     }
 
-
-    // Function to load state from session storage
-    function loadFromSessionStorage() {
-        const savedState = sessionStorage.getItem('graphState');
+    // Function to load state from local storage
+    function loadState() {
+        const savedState = localStorage.getItem('lineTool');
         if (savedState) {
             const state = JSON.parse(savedState);
 
-            if (state.chartData) {
-                chartData = state.chartData;
+            chartData = state.chartData || [];
+
+            if(state.regressionType) {
+                document.getElementById("regression-type").value = state.regressionType;
+                if(state.regressionType === 'polynomial') {
+                    document.getElementById("polynomial-degree-label").style.display = 'block';
+                }
+            }
+            if(state.polynomialDegree) {
+                document.getElementById("polynomial-degree").value = state.polynomialDegree;
             }
 
-            if (state.numberOfBends) {
-                numberOfBends = state.numberOfBends;
-                document.getElementById("bend-count").value = numberOfBends;
+            if (state.graphName) {
+                document.getElementById("graph-name").value = state.graphName;
+                config.options.plugins.title.text = state.graphName;
             }
 
+            if (state.axis) {
+                document.getElementById("x-axis-min").value = state.axis.xMin;
+                document.getElementById("x-axis-max").value = state.axis.xMax;
+                document.getElementById("y-axis-min").value = state.axis.yMin;
+                document.getElementById("y-axis-max").value = state.axis.yMax;
+                document.getElementById("xInterval").value = state.axis.xInterval;
+                document.getElementById("yInterval").value = state.axis.yInterval;
+                updateAxis(); // This will update the chart's scales
+            }
 
-            if (state.xMin || state.xMax || state.yMin || state.yMax) {
-                config.options.scales.x.min = state.xMin;
-                config.options.scales.x.max = state.xMax;
-                config.options.scales.y.min = state.yMin;
-                config.options.scales.y.max = state.yMax;
+            if (state.colors) {
+                document.getElementById("point-color").value = state.colors.pointColor;
+                document.getElementById("line-color").value = state.colors.lineColor;
+                pointColor = state.colors.pointColor;
+                lineColor = state.colors.lineColor;
+                config.data.datasets[0].backgroundColor = pointColor;
+                config.data.datasets[1].borderColor = lineColor;
+            }
+
+            if (state.ui) {
+                document.getElementById("ui-size").value = state.ui.size;
+                document.getElementById("line-thickness").value = state.ui.lineThickness;
+                // Trigger the change event to apply the UI size
+                document.getElementById("ui-size").dispatchEvent(new Event('change'));
+                document.getElementById("line-thickness").dispatchEvent(new Event('input'));
             }
 
 
             // Update the chart and table
-            myChart.update();
             updateTable();
+            updateLineOfBestFit();
+             if(lineDataObj) {
+                updateLineOfBestFitVariablesAndHTML(lineDataObj);
+            }
+            myChart.update();
         }
     }
-    loadFromSessionStorage();  // Load the state
+    loadState();  // Load the state
 
     function updateAxis() {
         let xMinInput = document.getElementById("x-axis-min").value;
@@ -197,7 +230,7 @@ document.addEventListener("DOMContentLoaded", function() {
         };
 
         myChart.update();
-        saveToSessionStorage();
+        saveState();
     }
 
     // Call it initially
@@ -224,7 +257,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
         undoStack.push({ type: 'add', data: {x, y} });
         updateTable();
-        saveToSessionStorage();  // Save the state
+        saveState();  // Save the state
     }
 
 
@@ -264,25 +297,34 @@ document.addEventListener("DOMContentLoaded", function() {
                 updateLineOfBestFitVariablesAndHTML(lineDataObj);
             }
             myChart.update();
+            saveState();
         }
     });
 
-    document.getElementById("bend-count").addEventListener("input", function() {
-        numberOfBends = parseInt(this.value);
+    document.getElementById("regression-type").addEventListener("change", function() {
+        const polyDegreeLabel = document.getElementById("polynomial-degree-label");
+        if (this.value === "polynomial") {
+            polyDegreeLabel.style.display = "block";
+        } else {
+            polyDegreeLabel.style.display = "none";
+        }
         updateLineOfBestFit();
-        saveToSessionStorage();  // Save the state
+        saveState();
+    });
+
+    document.getElementById("polynomial-degree").addEventListener("input", function() {
+        updateLineOfBestFit();
+        saveState();
     });
 
     function updateLineOfBestFitVariablesAndHTML(lineDataObj) {
-        if (!lineDataObj) {
+        if (!lineDataObj || lineDataObj.rSquared === null || isNaN(lineDataObj.rSquared)) {
             document.querySelector('.equation span').innerText = '';
             document.querySelector('.accuracy span').innerText = '';
-            return;
+        } else {
+            document.querySelector('.equation span').innerText = lineDataObj.equation;
+            document.querySelector('.accuracy span').innerText = lineDataObj.rSquared.toFixed(4);
         }
-        const slope = lineDataObj.slope;
-        const intercept = lineDataObj.intercept;
-        document.querySelector('.equation span').innerText = getLineEquation(slope, intercept);
-        document.querySelector('.accuracy span').innerText = getRSquared(chartData, slope, intercept).toFixed(2);
     }
 
     function updateLineOfBestFit() {
@@ -290,51 +332,168 @@ document.addEventListener("DOMContentLoaded", function() {
             config.data.datasets[1].data = [];
             lineDataObj = null;
             myChart.update();
+            updateLineOfBestFitVariablesAndHTML(null);
             return;
         }
-        // Your existing logic for a straight line can go here as a special case
-        if (numberOfBends === 1) {
-            lineDataObj = calculateLineOfBestFit(chartData);
-            if (lineDataObj) {
-                config.data.datasets[1].data = lineDataObj.data;
-            }
+
+        const regressionType = document.getElementById("regression-type").value;
+        let points = chartData;
+        lineDataObj = null; // Reset
+
+        switch (regressionType) {
+            case 'linear':
+                lineDataObj = calculateLinearRegression(points);
+                break;
+            case 'polynomial':
+                const degree = parseInt(document.getElementById('polynomial-degree').value);
+                if (points.length > degree) {
+                    lineDataObj = calculatePolynomialRegression(points, degree);
+                }
+                break;
+            case 'logarithmic':
+                points = chartData.filter(p => p.x > 0);
+                if (points.length >= 2) {
+                    lineDataObj = calculateLogarithmicRegression(points);
+                }
+                break;
+            case 'power':
+                points = chartData.filter(p => p.x > 0 && p.y > 0);
+                if (points.length >= 2) {
+                    lineDataObj = calculatePowerRegression(points);
+                }
+                break;
+            case 'exponential':
+                 points = chartData.filter(p => p.y > 0);
+                 if (points.length >= 2) {
+                    lineDataObj = calculateExponentialRegression(points);
+                 }
+                break;
+        }
+
+        if (lineDataObj) {
+            config.data.datasets[1].data = lineDataObj.data;
+            updateLineOfBestFitVariablesAndHTML(lineDataObj);
         } else {
-            // Polynomial regression logic for lines with bends can be found in the calculatePolynomialLine() function
-            const degree = numberOfBends - 1;
-            if (chartData.length > degree) {
-                config.data.datasets[1].data = calculatePolynomialLine(chartData, degree);
-            } else {
-                config.data.datasets[1].data = [];
-            }
+            config.data.datasets[1].data = [];
+            updateLineOfBestFitVariablesAndHTML(null);
         }
 
         myChart.update();
     }
 
-    function calculatePolynomialLine(data, degree) {
-        const xValues = data.map(point => point.x);
-        const yValues = data.map(point => point.y);
+    function calculateLinearRegression(data) {
+        const points = data.map(p => [p.x, p.y]);
+        if (points.length < 2) return null;
 
-        // Perform polynomial regression
-        const coefficients = simpleStatistics.polynomial(xValues, yValues, degree);
+        const { m, b } = simpleStatistics.linearRegression(points);
 
-        // Generate points for the polynomial line
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
-        const step = (xMax - xMin) / 100; // Number of points to generate
+
+        const lineData = [
+            { x: xMin, y: m * xMin + b },
+            { x: xMax, y: m * xMax + b }
+        ];
+
+        const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
+        const rSquared = simpleStatistics.rSquared(points, (x) => m * x + b);
+
+        return { data: lineData, equation, rSquared };
+    }
+
+    function calculatePolynomialRegression(data, degree) {
+        const points = data.map(p => [p.x, p.y]);
+        if (points.length <= degree) return null;
+
+        const regression = simpleStatistics.polynomialRegression(points, degree);
+        const predict = (x) => regression.predict(x)[1];
+
+        const xMin = config.options.scales.x.min;
+        const xMax = config.options.scales.x.max;
+        const step = (xMax - xMin) / 100;
         const lineData = [];
 
         for (let x = xMin; x <= xMax; x += step) {
-            let y = 0;
-            for (let i = 0; i <= degree; i++) {
-                y += coefficients[i] * Math.pow(x, i);
-            }
-            lineData.push({ x, y });
+            lineData.push({ x, y: predict(x) });
         }
 
-        return lineData;
+        const equation = regression.string;
+        const rSquared = simpleStatistics.rSquared(points, predict);
+
+        return { data: lineData, equation, rSquared };
     }
 
+    function calculateLogarithmicRegression(data) {
+        const points = data.map(p => [Math.log(p.x), p.y]);
+        if (points.length < 2) return null;
+
+        const { m, b } = simpleStatistics.linearRegression(points);
+        const predict = (x) => m * Math.log(x) + b;
+
+        const xMin = Math.max(config.options.scales.x.min, 0.01); // Avoid log(0)
+        const xMax = config.options.scales.x.max;
+        const step = (xMax - xMin) / 100;
+        const lineData = [];
+
+        for (let x = xMin; x <= xMax; x += step) {
+            if (x > 0) {
+                lineData.push({ x, y: predict(x) });
+            }
+        }
+
+        const equation = `y = ${m.toFixed(2)}ln(x) + ${b.toFixed(2)}`;
+        const rSquared = simpleStatistics.rSquared(data.map(p => [p.x, p.y]), predict);
+
+        return { data: lineData, equation, rSquared };
+    }
+
+    function calculatePowerRegression(data) {
+        const points = data.map(p => [Math.log(p.x), Math.log(p.y)]);
+        if (points.length < 2) return null;
+
+        const { m, b } = simpleStatistics.linearRegression(points);
+        const a = Math.exp(b);
+        const predict = (x) => a * Math.pow(x, m);
+
+        const xMin = Math.max(config.options.scales.x.min, 0.01);
+        const xMax = config.options.scales.x.max;
+        const step = (xMax - xMin) / 100;
+        const lineData = [];
+
+        for (let x = xMin; x <= xMax; x += step) {
+            if (x > 0) {
+                lineData.push({ x, y: predict(x) });
+            }
+        }
+
+        const equation = `y = ${a.toFixed(2)}x^${m.toFixed(2)}`;
+        const rSquared = simpleStatistics.rSquared(data.map(p => [p.x, p.y]), predict);
+
+        return { data: lineData, equation, rSquared };
+    }
+
+    function calculateExponentialRegression(data) {
+        const points = data.map(p => [p.x, Math.log(p.y)]);
+        if (points.length < 2) return null;
+
+        const { m, b } = simpleStatistics.linearRegression(points);
+        const a = Math.exp(b);
+        const predict = (x) => a * Math.exp(m * x);
+
+        const xMin = config.options.scales.x.min;
+        const xMax = config.options.scales.x.max;
+        const step = (xMax - xMin) / 100;
+        const lineData = [];
+
+        for (let x = xMin; x <= xMax; x += step) {
+            lineData.push({ x, y: predict(x) });
+        }
+
+        const equation = `y = ${a.toFixed(2)}e^(${m.toFixed(2)}x)`;
+        const rSquared = simpleStatistics.rSquared(data.map(p => [p.x, p.y]), predict);
+
+        return { data: lineData, equation, rSquared };
+    }
     // Function to update the points table
     function updateTable() {
         tableBody.innerHTML = '';
@@ -369,67 +528,77 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         updateTable();
-        saveToSessionStorage();  // Save the state
+        saveState();  // Save the state
     };
 
+    function autoSelectBestFit() {
+        if (chartData.length < 2) return;
 
-    function calculateLineOfBestFit(data) {
-        let sumX = 0, sumY = 0, sumX2 = 0, sumXY = 0, n = data.length;
-        if (n < 2) {
-            return null;
+        const results = [];
+        let points;
+
+        // Linear
+        points = chartData;
+        const linearResult = calculateLinearRegression(points);
+        if (linearResult && isFinite(linearResult.rSquared)) {
+            results.push({ type: 'linear', rSquared: linearResult.rSquared });
         }
 
-        for(let i = 0; i < n; i++) {
-            sumX += data[i].x;
-            sumY += data[i].y;
-            sumX2 += data[i].x * data[i].x;
-            sumXY += data[i].x * data[i].y;
+        // Polynomial
+        for (let degree = 2; degree <= 5; degree++) {
+            points = chartData;
+            if (points.length > degree) {
+                const polyResult = calculatePolynomialRegression(points, degree);
+                if (polyResult && isFinite(polyResult.rSquared)) {
+                    results.push({ type: 'polynomial', degree: degree, rSquared: polyResult.rSquared });
+                }
+            }
         }
 
-        let slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-        let intercept = (sumY - slope * sumX) / n;
-
-        // Get the minimum and maximum x-values from the graph settings
-        const xMin = config.options.scales.x.min;
-        const xMax = config.options.scales.x.max;
-
-        // Calculate the y-values for the line of best fit at xMin and xMax
-        const yMin = slope * xMin + intercept;
-        const yMax = slope * xMax + intercept;
-
-        // Create the line data to include these two points
-        let lineData = [
-            { x: xMin, y: yMin },
-            { x: xMax, y: yMax }
-        ];
-
-        return {
-            data: lineData,
-            slope: slope,
-            intercept: intercept
-        };
-    }
-
-
-
-    function getLineEquation(slope, intercept) {
-        return `y = ${slope.toFixed(2)}x + ${intercept.toFixed(2)}`;
-    }
-
-    function getRSquared(data, slope, intercept) {
-        let sumY = 0, sumYSquared = 0, sumResidualsSquared = 0;
-        for (let i = 0; i < data.length; i++) {
-            const predictedY = slope * data[i].x + intercept;
-            const residual = data[i].y - predictedY;
-
-            sumY += data[i].y;
-            sumYSquared += data[i].y * data[i].y;
-            sumResidualsSquared += residual * residual;
+        // Logarithmic
+        points = chartData.filter(p => p.x > 0);
+        if (points.length >= 2) {
+            const logResult = calculateLogarithmicRegression(points);
+            if (logResult && isFinite(logResult.rSquared)) {
+                results.push({ type: 'logarithmic', rSquared: logResult.rSquared });
+            }
         }
-        const meanY = sumY / data.length;
-        const totalVariance = sumYSquared - sumY * meanY;
-        return 1 - (sumResidualsSquared / totalVariance);
+
+        // Power
+        points = chartData.filter(p => p.x > 0 && p.y > 0);
+        if (points.length >= 2) {
+            const powerResult = calculatePowerRegression(points);
+            if (powerResult && isFinite(powerResult.rSquared)) {
+                results.push({ type: 'power', rSquared: powerResult.rSquared });
+            }
+        }
+
+        // Exponential
+        points = chartData.filter(p => p.y > 0);
+        if (points.length >= 2) {
+            const expResult = calculateExponentialRegression(points);
+            if (expResult && isFinite(expResult.rSquared)) {
+                results.push({ type: 'exponential', rSquared: expResult.rSquared });
+            }
+        }
+
+        if (results.length === 0) return;
+
+        const bestFit = results.reduce((best, current) => current.rSquared > best.rSquared ? current : best, { rSquared: -Infinity });
+
+        const regressionTypeSelect = document.getElementById("regression-type");
+        regressionTypeSelect.value = bestFit.type;
+        regressionTypeSelect.dispatchEvent(new Event('change'));
+
+        if (bestFit.type === 'polynomial') {
+            document.getElementById('polynomial-degree').value = bestFit.degree;
+        }
+
+        updateLineOfBestFit();
+        saveState();
     }
+
+    document.getElementById("auto-select-best-fit").addEventListener("click", autoSelectBestFit);
 
     // Listen for Save CSV button click
     document.getElementById("save-csv").addEventListener("click", function() {
@@ -443,6 +612,15 @@ document.addEventListener("DOMContentLoaded", function() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+    });
+
+    document.getElementById("reset-data").addEventListener("click", function() {
+        chartData = [];
+        lineDataObj = null;
+        updateTable();
+        updateLineOfBestFit();
+        myChart.update();
+        saveState();
     });
 
     // Listen for Sort X button click
@@ -484,7 +662,7 @@ document.addEventListener("DOMContentLoaded", function() {
             // Push the undone action to the redo stack
             redoStack.push(lastAction);
         }
-        saveToSessionStorage();  // Save the state
+        saveState();  // Save the state
     });
 
     // Listen for Redo button click
@@ -520,7 +698,7 @@ document.addEventListener("DOMContentLoaded", function() {
             // Push the redone action back to the undo stack
             undoStack.push(lastAction);
         }
-        saveToSessionStorage();  // Save the state
+        saveState();  // Save the state
     });
 
 
@@ -619,12 +797,13 @@ document.addEventListener("DOMContentLoaded", function() {
         pointColor = this.value;
         config.data.datasets[0].backgroundColor = pointColor;
         myChart.update();
-        saveToSessionStorage();  // Save the state
+        saveState();  // Save the state
     });
 
     document.getElementById("graph-name").addEventListener("input", function() {
         config.options.plugins.title.text = this.value;
         myChart.update();
+        saveState();
     });
 
     document.getElementById("ui-size").addEventListener("change", function() {
@@ -655,20 +834,21 @@ document.addEventListener("DOMContentLoaded", function() {
         config.data.datasets[1].borderWidth = newThickness;
         lineThickness = newThickness; // update global variable
         myChart.update();
+        saveState();
     });
 
     document.getElementById("line-color").addEventListener("input", function() {
         lineColor = this.value;
         config.data.datasets[1].borderColor = lineColor;
         myChart.update();
-        saveToSessionStorage();  // Save the state
+        saveState();  // Save the state
     });
 
     document.getElementById("line-thickness").addEventListener("input", function() {
         lineThickness = parseFloat(this.value);
         config.data.datasets[1].borderWidth = lineThickness;
         myChart.update();
-        saveToSessionStorage();  // Save the state
+        saveState();  // Save the state
     });
 
     // Listen for window resize

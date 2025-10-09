@@ -14,104 +14,98 @@
     </header>
     <!-- Main Content -->
     <main class="main-content">
-
-        <!-- Graph -->
-        <div class="graph graph-block graphContainer">
-            <!-- Graph rendering library will operate here -->
+        <div class="graph-container">
+            <!-- Graph will be rendered here -->
         </div>
 
-        <!-- Points Table -->
-        <table class="points-table">
-            <thead>
-                <tr>
-                    <th>X-Coordinate</th>
-                    <th>Y-Coordinate</th>
-                    <th>Action</th> <!-- For delete action -->
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Points will be dynamically added here with the delete button -->
-            </tbody>
-        </table>
-        <button id="add-point">Add Point</button>
-        <button id="draw-mode">Draw Mode</button>
+        <aside class="sidebar">
+            <div class="controls-container">
+                <h2>Controls</h2>
+                <button id="add-point">Add Point</button>
+                <button id="draw-mode">Draw Mode</button>
+                <button id="undo-action">Undo</button>
+                <button id="redo-action">Redo</button>
+                <button id="sort-x-coordinates">Sort X</button>
+                <button id="reset-data">Reset Data</button>
+                <button id="save-csv">Save as CSV</button>
+            </div>
 
-        <!-- Results -->
-        <div class="results">
-            <h2>Results</h2>
-            <p class="equation">Equation: <span></span></p>
-            <p class="accuracy">Accuracy: <span></span></p>
-            <button id="undo-action">Undo</button> <!-- Undo action -->
-            <button id="redo-action">Redo</button>
-            <button id="sort-x-coordinates">Sort X</button> <!-- Sorting points based on x-coordinate -->
-        </div>
+            <div class="points-table-container">
+                <h2>Points</h2>
+                <table class="points-table">
+                    <thead>
+                        <tr>
+                            <th>X</th>
+                            <th>Y</th>
+                            <th>Del</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Points will be dynamically added here -->
+                    </tbody>
+                </table>
+            </div>
 
-        <!-- Graph Settings -->
-        <div class="settings">
-            <h2>Settings</h2>
+            <div class="results-container">
+                <h2>Results</h2>
+                <p class="equation">Equation: <span></span></p>
+                <p class="accuracy">Accuracy (R²): <span></span></p>
+            </div>
 
-            <!-- Name the graph data -->
-            <label for="graph-name">Graph Name:
-            <input type="text" id="graph-name">
-            </label>
+            <div class="settings-container">
+                <h2>Settings</h2>
+                <label for="graph-name">Graph Name:</label>
+                <input type="text" id="graph-name">
 
-
-            <div class="axis-settings">
-                <label for="x-axis-min">X-Axis Min:
+                <label for="x-axis-min">X-Axis Min:</label>
                 <input type="number" id="x-axis-min">
-                </label>
 
-                <label for="x-axis-max">X-Axis Max:
+                <label for="x-axis-max">X-Axis Max:</label>
                 <input type="number" id="x-axis-max">
-                </label>
-            </div>
 
-            <div class="axis-settings">
-                <label for="y-axis-min">Y-Axis Min:
+                <label for="y-axis-min">Y-Axis Min:</label>
                 <input type="number" id="y-axis-min">
-                </label>
 
-                <label for="y-axis-max">Y-Axis Max:
+                <label for="y-axis-max">Y-Axis Max:</label>
                 <input type="number" id="y-axis-max">
-                </label>
+
+                <label for="xInterval">X-Interval:</label>
+                <input type="text" id="xInterval" placeholder="Auto">
+
+                <label for="yInterval">Y-Interval:</label>
+                <input type="text" id="yInterval" placeholder="Auto">
+
+                <label for="regression-type">Line Type:</label>
+                <select id="regression-type">
+                    <option value="linear" selected>Linear</option>
+                    <option value="polynomial">Polynomial</option>
+                    <option value="logarithmic">Logarithmic</option>
+                    <option value="power">Power</option>
+                    <option value="exponential">Exponential</option>
+                </select>
+                <button id="auto-select-best-fit">Auto-Select</button>
+
+                <label for="polynomial-degree" id="polynomial-degree-label" style="display: none;">Degree:</label>
+                <input type="range" id="polynomial-degree" min="2" max="5" step="1" value="2">
+
+                <label for="point-color">Point Color:</label>
+                <input type="color" id="point-color">
+
+                <label for="line-color">Line Color:</label>
+                <input type="color" id="line-color">
+
+                <label for="ui-size">UI Size:</label>
+                <select id="ui-size">
+                    <option value="tiny">Tiny</option>
+                    <option value="small" selected>Small</option>
+                    <option value="medium">Medium</option>
+                    <option value="large">Large</option>
+                </select>
+
+                <label for="line-thickness">Line Thickness:</label>
+                <input type="range" id="line-thickness" min="1" max="5" step="1" value="3">
             </div>
-
-
-
-            <label for="xInterval">X-Interval:
-            <input type="text" id="xInterval" placeholder="X-Interval">
-            </label>
-
-            <label for="yInterval">Y-Interval:
-            <input type="text" id="yInterval" placeholder="Y-Interval">
-            </label>
-
-            <label for="bend-count">Number of Bends:
-            <input type="range" id="bend-count" min="1" max="5" step="1" value="1">
-            </label>
-
-            <label for="point-color">Point Color:</label>
-            <input type="color" id="point-color">
-
-            <label for="line-color">Line Color:</label>
-            <input type="color" id="line-color">
-
-            <!-- UI Element Size -->
-            <label for="ui-size">UI Element Size:</label>
-            <select id="ui-size">
-                <option value="tiny">Tiny</option>
-                <option value="small" selected>Small</option>
-                <option value="medium">Medium</option>
-                <option value="large">Large</option>
-            </select>
-
-            <label for="line-thickness">Line Thickness:</label>
-            <input type="range" id="line-thickness" min="1" max="5" step="1" value="3"> <!-- Adjustable as per needs -->
-
-            <button id="save-csv">Save as CSV</button> <!-- Button to save graph data as CSV -->
-
-        </div>
-
+        </aside>
     </main>
     <footer>
         <p>Created by Jules</p>
