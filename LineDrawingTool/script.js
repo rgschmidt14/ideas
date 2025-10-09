@@ -278,15 +278,16 @@ document.addEventListener("DOMContentLoaded", function() {
     document.addEventListener("input", function(event) {
         if (event.target.classList.contains("coordinate-input")) {
             const index = parseInt(event.target.getAttribute("data-index"));
-            const value = parseFloat(event.target.value);
-            const oldValue = chartData[index][event.target.classList.contains("x-coordinate") ? 'x' : 'y'];
+            const newValue = parseFloat(event.target.value);
+            const field = event.target.classList.contains("x-coordinate") ? 'x' : 'y';
+            const oldValue = chartData[index][field];
             // Push the old value to the undo stack
-            undoStack.push({ type: 'edit', data: { index, field: event.target.classList.contains("x-coordinate") ? 'x' : 'y', oldValue } });
+            undoStack.push({ type: 'edit', data: { index, field, oldValue, newValue } });
 
-            if (event.target.classList.contains("x-coordinate")) {
-                chartData[index].x = value;
-            } else if (event.target.classList.contains("y-coordinate")) {
-                chartData[index].y = value;
+            if (field === 'x') {
+                chartData[index].x = newValue;
+            } else {
+                chartData[index].y = newValue;
             }
 
             // Recalculate line of best fit
@@ -368,6 +369,9 @@ document.addEventListener("DOMContentLoaded", function() {
                     lineDataObj = calculateExponentialRegression(points);
                  }
                 break;
+            case 'theil-sen':
+                lineDataObj = calculateTheilSenRegression(points);
+                break;
         }
 
         if (lineDataObj) {
@@ -385,7 +389,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const points = data.map(p => [p.x, p.y]);
         if (points.length < 2) return null;
 
-        const { m, b } = simpleStatistics.linearRegression(points);
+        const { m, b } = ss.linearRegression(points);
 
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
@@ -396,7 +400,7 @@ document.addEventListener("DOMContentLoaded", function() {
         ];
 
         const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
-        const rSquared = simpleStatistics.rSquared(points, (x) => m * x + b);
+        const rSquared = ss.rSquared(points, (x) => m * x + b);
 
         return { data: lineData, equation, rSquared };
     }
@@ -405,7 +409,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const points = data.map(p => [p.x, p.y]);
         if (points.length <= degree) return null;
 
-        const regression = simpleStatistics.polynomialRegression(points, degree);
+        const regression = ss.polynomialRegression(points, degree);
         const predict = (x) => regression.predict(x)[1];
 
         const xMin = config.options.scales.x.min;
@@ -418,7 +422,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = regression.string;
-        const rSquared = simpleStatistics.rSquared(points, predict);
+        const rSquared = ss.rSquared(points, predict);
 
         return { data: lineData, equation, rSquared };
     }
@@ -427,7 +431,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const points = data.map(p => [Math.log(p.x), p.y]);
         if (points.length < 2) return null;
 
-        const { m, b } = simpleStatistics.linearRegression(points);
+        const { m, b } = ss.linearRegression(points);
         const predict = (x) => m * Math.log(x) + b;
 
         const xMin = Math.max(config.options.scales.x.min, 0.01); // Avoid log(0)
@@ -442,7 +446,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${m.toFixed(2)}ln(x) + ${b.toFixed(2)}`;
-        const rSquared = simpleStatistics.rSquared(data.map(p => [p.x, p.y]), predict);
+        const rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
 
         return { data: lineData, equation, rSquared };
     }
@@ -451,7 +455,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const points = data.map(p => [Math.log(p.x), Math.log(p.y)]);
         if (points.length < 2) return null;
 
-        const { m, b } = simpleStatistics.linearRegression(points);
+        const { m, b } = ss.linearRegression(points);
         const a = Math.exp(b);
         const predict = (x) => a * Math.pow(x, m);
 
@@ -467,7 +471,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${a.toFixed(2)}x^${m.toFixed(2)}`;
-        const rSquared = simpleStatistics.rSquared(data.map(p => [p.x, p.y]), predict);
+        const rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
 
         return { data: lineData, equation, rSquared };
     }
@@ -476,7 +480,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const points = data.map(p => [p.x, Math.log(p.y)]);
         if (points.length < 2) return null;
 
-        const { m, b } = simpleStatistics.linearRegression(points);
+        const { m, b } = ss.linearRegression(points);
         const a = Math.exp(b);
         const predict = (x) => a * Math.exp(m * x);
 
@@ -490,7 +494,31 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${a.toFixed(2)}e^(${m.toFixed(2)}x)`;
-        const rSquared = simpleStatistics.rSquared(data.map(p => [p.x, p.y]), predict);
+        const rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
+
+        return { data: lineData, equation, rSquared };
+    }
+
+    function calculateTheilSenRegression(data) {
+        const points = data.map(p => [p.x, p.y]);
+        if (points.length < 2) return null;
+
+        const line = ss.theilSen(points);
+
+        const xMin = config.options.scales.x.min;
+        const xMax = config.options.scales.x.max;
+
+        const lineData = [
+            { x: xMin, y: line(xMin) },
+            { x: xMax, y: line(xMax) }
+        ];
+
+        // The theilSen function does not directly provide m and b, so we calculate them
+        const m = (line(xMax) - line(xMin)) / (xMax - xMin);
+        const b = line(xMin) - m * xMin;
+
+        const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
+        const rSquared = ss.rSquared(points, line);
 
         return { data: lineData, equation, rSquared };
     }
@@ -502,19 +530,16 @@ document.addEventListener("DOMContentLoaded", function() {
             row.innerHTML = `
                 <td><input type="number" id="xCor${index}" class="coordinate-input x-coordinate" data-index="${index}" value="${point.x}"></td>
                 <td><input type="number" id="yCor${index}" class="coordinate-input y-coordinate" data-index="${index}" value="${point.y}"></td>
-                <td><button onclick="deletePoint(${index})">Delete</button></td>
+                <td><button class="delete-point-btn" data-index="${index}">Delete</button></td>
             `;
             tableBody.appendChild(row);
         });
     }
 
-
-
-
     // Function to delete a point
-    window.deletePoint = function(index) {
+    function deletePoint(index) {
         const point = chartData[index];
-        undoStack.push({ type: 'delete', data: point });
+        undoStack.push({ type: 'delete', data: point, index: index }); // Also save index for redo
 
         // Remove point from chartData
         chartData.splice(index, 1);
@@ -530,6 +555,13 @@ document.addEventListener("DOMContentLoaded", function() {
         updateTable();
         saveState();  // Save the state
     };
+
+    tableBody.addEventListener('click', function(event) {
+        if (event.target.classList.contains('delete-point-btn')) {
+            const index = parseInt(event.target.getAttribute('data-index'));
+            deletePoint(index);
+        }
+    });
 
     function autoSelectBestFit() {
         if (chartData.length < 2) return;
@@ -580,6 +612,13 @@ document.addEventListener("DOMContentLoaded", function() {
             if (expResult && isFinite(expResult.rSquared)) {
                 results.push({ type: 'exponential', rSquared: expResult.rSquared });
             }
+        }
+
+        // Theil-Sen
+        points = chartData;
+        const theilSenResult = calculateTheilSenRegression(points);
+        if (theilSenResult && isFinite(theilSenResult.rSquared)) {
+            results.push({ type: 'theil-sen', rSquared: theilSenResult.rSquared });
         }
 
         if (results.length === 0) return;
@@ -640,13 +679,13 @@ document.addEventListener("DOMContentLoaded", function() {
                     chartData.splice(index, 1);
                 }
             } else if (lastAction.type === 'delete') {
-                chartData.push(lastAction.data);
+                chartData.splice(lastAction.index, 0, lastAction.data);
             } else if (lastAction.type === 'edit') {
-                chartData[lastAction.data.index][lastAction.data.field] = lastAction.data.oldValue;
+                chartData[lastAction.data.index][lastAction.data.field] = lastAction.data.newValue;
             } else if (lastAction.type === 'move') {
                 const point = chartData[lastAction.data.index];
-                point.x = lastAction.data.oldX;
-                point.y = lastAction.data.oldY;
+                point.x = lastAction.data.newX;
+                point.y = lastAction.data.newY;
             }
 
             // Recalculate line of best fit
@@ -672,10 +711,7 @@ document.addEventListener("DOMContentLoaded", function() {
             if (lastAction.type === 'add') {
                 addPoint(lastAction.data.x, lastAction.data.y);
             } else if (lastAction.type === 'delete') {
-                const index = chartData.findIndex(point => point.x === lastAction.data.x && point.y === lastAction.data.y);
-                if(index > -1) {
-                    chartData.splice(index, 1);
-                }
+                chartData.splice(lastAction.index, 1);
             } else if (lastAction.type === 'edit') {
                 chartData[lastAction.data.index][lastAction.data.field] = lastAction.data.oldValue;
             } else if (lastAction.type === 'move') {
@@ -787,9 +823,14 @@ document.addEventListener("DOMContentLoaded", function() {
             return;
         }
         if (selectedPoint) {
+            const oldX = selectedPoint.x;
+            const oldY = selectedPoint.y;
             const newX = chartData[selectedPoint.index].x;
             const newY = chartData[selectedPoint.index].y;
-            undoStack.push({ type: 'move', data: { index: selectedPoint.index, newX, newY } });
+
+            if (oldX !== newX || oldY !== newY) {
+                undoStack.push({ type: 'move', data: { index: selectedPoint.index, oldX, oldY, newX, newY } });
+            }
             selectedPoint = null;
         }
     });
