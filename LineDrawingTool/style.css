@@ -1,15 +1,57 @@
+/*
+  Nature-Inspired Theme (Evergreen & Berries)
+  Light & Dark Mode Enabled
+*/
+
+:root {
+  /* Light Mode (Default) */
+  --bg-color: #F0F4F0; /* Misty morning air */
+  --primary-container-bg: #FFFFFF;
+  --secondary-container-bg: #E6EBE6;
+  --text-color: #2F3E2F; /* Forest shadows */
+  --header-bg: #4A6C4A; /* Calming evergreen */
+  --header-text: #FFFFFF;
+  --button-bg: #6A8A6A; /* Lighter evergreen */
+  --button-hover-bg: #5A7A5A;
+  --accent-color: #A94D4D; /* Muted berry red */
+  --border-color: #D1D9D1;
+  --shadow-color: rgba(47, 62, 47, 0.1);
+  --input-bg: #FFFFFF;
+  --input-border: #ccc;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Dark Mode (Moonlit Forest) */
+    --bg-color: #1A221A; /* Near-black green */
+    --primary-container-bg: #253025;
+    --secondary-container-bg: #1F281F;
+    --text-color: #E0E6E0; /* Soft light green-grey */
+    --header-bg: #385238;
+    --header-text: #E0E6E0;
+    --button-bg: #5A7A5A;
+    --button-hover-bg: #6A8A6A;
+    --accent-color: #C96D6D; /* Brighter berry red */
+    --border-color: #3D4A3D;
+    --shadow-color: rgba(0, 0, 0, 0.2);
+    --input-bg: #2F3E2F;
+    --input-border: #3D4A3D;
+  }
+}
+
 /* General Body Styles */
 body {
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f0f2f5;
-    color: #333;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
 }
 
 header {
-    background-color: #4a69bd;
-    color: white;
+    background-color: var(--header-bg);
+    color: var(--header-text);
     padding: 1rem;
     text-align: center;
 }
@@ -25,9 +67,10 @@ header {
     flex: 3;
     min-width: 300px;
     padding: 1rem;
-    background-color: white;
+    background-color: var(--primary-container-bg);
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px var(--shadow-color);
+    border: 1px solid var(--border-color);
 }
 
 .sidebar {
@@ -44,16 +87,17 @@ header {
 .points-table-container,
 .results-container,
 .settings-container {
-    background-color: white;
+    background-color: var(--primary-container-bg);
     padding: 1rem;
     border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px var(--shadow-color);
+    border: 1px solid var(--border-color);
 }
 
 h2 {
     margin-top: 0;
-    color: #4a69bd;
-    border-bottom: 2px solid #4a69bd;
+    color: var(--header-bg);
+    border-bottom: 2px solid var(--accent-color);
     padding-bottom: 0.5rem;
 }
 
@@ -67,6 +111,7 @@ h2 {
 label {
     display: block;
     margin-bottom: 5px;
+    font-weight: 500;
 }
 
 input[type="text"],
@@ -74,27 +119,42 @@ input[type="number"],
 select {
     width: 100%;
     padding: 8px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--input-border);
     border-radius: 4px;
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+input[type="color"] {
+    padding: 2px;
+    height: 35px;
 }
 
 button {
     padding: 10px 15px;
     border: none;
-    background-color: #4a69bd;
-    color: white;
+    background-color: var(--button-bg);
+    color: var(--header-text);
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.3s;
+    font-weight: bold;
 }
 
 button:hover {
-    background-color: #3b5998;
+    background-color: var(--button-hover-bg);
 }
 
 #auto-select-best-fit {
     grid-column: span 2;
+    background-color: var(--accent-color);
 }
+
+#auto-select-best-fit:hover {
+    opacity: 0.9;
+}
+
 
 /* Points Table */
 .points-table-container {
@@ -108,32 +168,33 @@ button:hover {
 }
 
 .points-table th, .points-table td {
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     padding: 8px;
     text-align: center;
 }
 
 .points-table th {
-    background-color: #f2f2f2;
+    background-color: var(--secondary-container-bg);
+    font-weight: 600;
 }
 
 .points-table input {
-    width: 80%;
+    width: 90%;
+    text-align: center;
 }
 
 /* Results */
 .results-container p {
     margin: 0.5rem 0;
 }
-
-/* Footer */
-footer {
-    text-align: center;
-    padding: 1rem;
-    margin-top: 2rem;
-    background-color: #4a69bd;
-    color: white;
+.results-container span {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+    color: var(--accent-color);
 }
+
+
+/* Footer is removed */
 
 /* Responsive Design */
 @media (max-width: 768px) {

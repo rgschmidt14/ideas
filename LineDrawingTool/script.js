@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const ctx = document.createElement('canvas');
     // Initialize canvas dimensions
     updateCanvasSize(ctx);
-    document.querySelector('.graph').appendChild(ctx);
+    document.querySelector('.graph-container').appendChild(ctx);
     let chartData = [];
     const config = {
         type: 'scatter',

@@ -13,3 +13,6 @@ This tool allows you to plot points on a graph by clicking on the canvas or by e
 - [ ] Implement the ability to save and load different graphs.
 - [ ] Add a "dark mode" to the UI.
 - [ ] Improve the UI/UX for mobile devices.
+
+---
+*Collaboratively created by Jules with KBLegend.*
