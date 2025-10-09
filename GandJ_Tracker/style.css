@@ -17,9 +17,39 @@ body {
 header {
     background: #333;
     color: #fff;
-    padding: 1rem 0;
+    padding: 1rem 0 0 0; /* Remove bottom padding */
     text-align: center;
-    margin-bottom: 1rem; /* Add some space below the header */
+}
+
+header h1 {
+    margin-bottom: 0.5rem;
+}
+
+#main-nav {
+    display: flex;
+    justify-content: center;
+    background-color: #444;
+}
+
+.nav-tab {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    background-color: transparent;
+    color: #eee;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: background-color 0.2s, color 0.2s;
+    border-bottom: 3px solid transparent;
+}
+
+.nav-tab:hover {
+    background-color: #555;
+    color: #fff;
+}
+
+.nav-tab.active {
+    color: #fff;
+    border-bottom: 3px solid var(--skill-color);
 }
 
 main {
@@ -653,18 +683,29 @@ input:checked + .slider:before {
 
 /* New styles for search result items */
 .search-result-item {
+    /* Button Resets */
+    font-family: inherit;
+    font-size: 1rem;
+    text-align: left;
+    margin: 0;
+
+    /* Layout & Box Model */
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
     padding: 0.75rem 1rem;
+    box-sizing: border-box;
+
+    /* Appearance */
+    background-color: #fff;
     border: 1px solid #ced4da;
     border-left-width: 5px;
     border-radius: 5px;
-    background-color: #fff;
     cursor: pointer;
+
+    /* Transitions */
     transition: background-color 0.2s ease, border-color 0.2s ease;
-    box-sizing: border-box;
 }
 
 .search-result-item:hover {
@@ -857,4 +898,10 @@ input:checked + .slider:before {
     margin: 0 auto; /* Center it */
     border-width: 2px;
     border-color: var(--skill-color);
+}
+
+#character-creator-container {
+    padding: 2rem;
+    text-align: center;
+    width: 100%;
 }
