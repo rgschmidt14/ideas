@@ -490,3 +490,218 @@ input:checked + .slider:before {
 .show-details-link:hover {
     text-decoration: underline;
 }
+
+/* --- Two-Pane Layout --- */
+#app-container {
+    display: flex;
+    /* Adjust based on header height, which is roughly 60px + 1rem margin */
+    height: calc(100vh - 76px);
+}
+
+#left-pane, #right-pane {
+    display: flex;
+    flex-direction: column;
+    transition: width 0.3s ease, min-width 0.3s ease, height 0.3s ease;
+    position: relative;
+}
+
+#left-pane {
+    width: 350px;
+    min-width: 350px;
+    background-color: #f8f9fa;
+    border-right: 1px solid #dee2e6;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+#right-pane {
+    flex-grow: 1;
+    /* The toolbar and skill-tree-container are its flex children */
+}
+
+/* Pane Headers & Toggles */
+.pane-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.pane-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.pane-toggle-btn {
+    background: #e9ecef;
+    border: 1px solid #ced4da;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.pane-toggle-btn:hover {
+    background: #dee2e6;
+}
+
+/* Search Controls */
+#search-controls {
+    margin-bottom: 1rem;
+}
+
+#search-bar {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+#search-results-container {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+/* --- Collapsed Pane States --- */
+#left-pane.collapsed {
+    width: 0;
+    min-width: 0;
+    padding-left: 0;
+    padding-right: 0;
+    overflow: hidden;
+    border-right: none;
+}
+
+/* The toggle button to show the left pane when it's collapsed */
+#right-pane-toggle {
+    position: absolute;
+    left: 10px;
+    /* Align with the main toolbar's vertical position */
+    top: 1rem;
+    z-index: 10;
+}
+
+
+/* --- Responsive Design for Panes --- */
+@media (max-width: 768px) {
+    #app-container {
+        flex-direction: column;
+        height: auto; /* Let content define height */
+    }
+
+    #left-pane {
+        width: 100%;
+        box-sizing: border-box;
+        border-right: none;
+        border-bottom: 1px solid #dee2e6;
+        height: 40vh; /* Give it a fixed height on mobile */
+        min-height: 250px;
+    }
+
+    #left-pane.collapsed {
+        height: 50px; /* When collapsed on mobile, show just the header */
+        min-height: 50px;
+        overflow: hidden;
+    }
+
+    #left-pane.collapsed #search-controls,
+    #left-pane.collapsed #search-results-container {
+        display: none;
+    }
+
+    #left-pane-toggle {
+        /* Change icon for vertical toggle */
+        transform: rotate(90deg);
+    }
+    #left-pane.collapsed #left-pane-toggle {
+        transform: rotate(-90deg);
+    }
+
+    #right-pane {
+      height: 100vh; /* Take up the rest of the screen */
+    }
+}
+
+/* Adjust the right pane's main content container */
+#right-pane #skill-tree-container {
+    flex-grow: 1; /* Allow this to grow to fill space */
+    overflow-y: auto; /* Allow scrolling within the content area */
+}
+
+/* --- Explorer View Styles --- */
+.explorer-view-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    gap: 2rem;
+}
+
+.explorer-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.explorer-section-title {
+    color: #6c757d;
+    font-size: 1rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.5rem;
+    width: 100%;
+    text-align: center;
+}
+
+.explorer-items-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.explorer-card {
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+    padding: 0.75rem 1rem;
+    background-color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    min-width: 150px;
+    text-align: center;
+}
+
+.explorer-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+    border-color: var(--skill-color);
+}
+
+.explorer-card .name {
+    font-weight: bold;
+    margin: 0;
+}
+
+.explorer-card .type {
+    font-size: 0.8rem;
+    color: #6c757d;
+}
+
+/* Style for the main, focal card */
+.explorer-focal .skill-card {
+    max-width: 600px;
+    margin: 0 auto; /* Center it */
+    border-width: 2px;
+    border-color: var(--skill-color);
+}

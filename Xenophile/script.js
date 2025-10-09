@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewAlphaBtn = document.getElementById('view-alpha-btn');
     const viewVTreeBtn = document.getElementById('view-vtree-btn');
     const viewHTreeBtn = document.getElementById('view-htree-btn');
+    const viewExplorerBtn = document.getElementById('view-explorer-btn');
     const treeControls = document.querySelector('.tree-controls');
     const collapseAllBtn = document.getElementById('collapse-all-btn');
     const expandAllBtn = document.getElementById('expand-all-btn');
@@ -24,6 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('export-btn');
     const importFileInput = document.getElementById('import-file-input');
     const discoveryModeToggle = document.getElementById('discovery-mode-toggle');
+
+    // Panes and Search
+    const leftPane = document.getElementById('left-pane');
+    const rightPane = document.getElementById('right-pane');
+    const leftPaneToggle = document.getElementById('left-pane-toggle');
+    const rightPaneToggle = document.getElementById('right-pane-toggle');
+    const searchBar = document.getElementById('search-bar');
+    const searchResultsContainer = document.getElementById('search-results-container');
 
 
     // --- Game Data & Constants ---
@@ -34,8 +43,70 @@ document.addEventListener('DOMContentLoaded', () => {
         skills: [],
         faculties: [],
     };
-    let currentView = 'alpha'; // 'alpha', 'v-tree', or 'h-tree'
+    let currentView = 'alpha'; // 'alpha', 'v-tree', 'h-tree', or 'explorer'
     let discoveryModeEnabled = false;
+    let activeExplorerItem = null; // ID of the item in the explorer view
+
+    // --- Pane Management ---
+    function togglePane(pane, isCollapsing) {
+        pane.classList.toggle('collapsed', isCollapsing);
+        const isMobile = window.innerWidth <= 768;
+
+        if (pane.id === 'left-pane') {
+            rightPaneToggle.style.display = isCollapsing ? 'flex' : 'none';
+            if (isCollapsing && isMobile) {
+                leftPaneToggle.textContent = 'v';
+            } else if (!isCollapsing && isMobile) {
+                leftPaneToggle.textContent = '^';
+            } else if (isCollapsing && !isMobile) {
+                leftPaneToggle.textContent = '>';
+            } else {
+                 leftPaneToggle.textContent = '<';
+            }
+        }
+    }
+
+    leftPaneToggle.addEventListener('click', () => togglePane(leftPane, !leftPane.classList.contains('collapsed')));
+    rightPaneToggle.addEventListener('click', () => togglePane(leftPane, false));
+
+
+    // --- Search Functionality ---
+    function renderSearchResults(searchTerm = '') {
+        const allItems = getAllItems();
+        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+
+        const filteredItems = allItems.filter(item =>
+            item.name.toLowerCase().includes(lowerCaseSearchTerm)
+        );
+
+        searchResultsContainer.innerHTML = ''; // Clear previous results
+
+        if (filteredItems.length === 0) {
+            searchResultsContainer.innerHTML = '<p class="no-results">No items found.</p>';
+            return;
+        }
+
+        filteredItems.sort((a, b) => a.name.localeCompare(b.name));
+
+        filteredItems.forEach(item => {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'search-result-item';
+            resultItem.dataset.id = item.id;
+            resultItem.innerHTML = `
+                <span class="result-name">${item.name}</span>
+                <span class="result-tier">[T${item.tier}]</span>
+                <span class="result-type">[${item.type}]</span>
+            `;
+            resultItem.addEventListener('click', () => {
+                activeExplorerItem = item.id;
+                setView('explorer');
+            });
+            searchResultsContainer.appendChild(resultItem);
+        });
+    }
+
+    searchBar.addEventListener('input', () => renderSearchResults(searchBar.value));
+
 
     // --- Data Functions ---
     function saveData() {
@@ -394,9 +465,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- View and Sorting Logic ---
     function setView(view) {
         currentView = view;
+        viewExplorerBtn.classList.toggle('active', view === 'explorer');
         viewAlphaBtn.classList.toggle('active', view === 'alpha');
         viewVTreeBtn.classList.toggle('active', view === 'v-tree');
         viewHTreeBtn.classList.toggle('active', view === 'h-tree');
+
 
         const vTreeStylesheet = document.getElementById('v-tree-stylesheet');
         const hTreeStylesheet = document.getElementById('h-tree-stylesheet');
@@ -405,8 +478,14 @@ document.addEventListener('DOMContentLoaded', () => {
         skillTreeContainer.className = '';
         skillTreeContainer.style.position = '';
 
-
-        if (view === 'v-tree') {
+        if (view === 'explorer') {
+            treeControls.style.display = 'none';
+            vTreeStylesheet.disabled = true;
+            hTreeStylesheet.disabled = true;
+            // The renderExplorerView function will be implemented in the next step.
+            // For now, we'll just show a placeholder.
+            renderExplorerView();
+        } else if (view === 'v-tree') {
             treeControls.style.display = 'flex';
             vTreeStylesheet.disabled = false;
             hTreeStylesheet.disabled = true;
@@ -426,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
         saveData(); // Save the new view state
     }
 
+    viewExplorerBtn.addEventListener('click', () => setView('explorer'));
     viewAlphaBtn.addEventListener('click', () => setView('alpha'));
     viewVTreeBtn.addEventListener('click', () => setView('v-tree'));
     viewHTreeBtn.addEventListener('click', () => setView('h-tree'));
@@ -838,6 +918,77 @@ function changeItemLevel(itemId, delta) {
     }
 
 
+    function renderExplorerView() {
+        skillTreeContainer.innerHTML = '';
+        skillTreeContainer.className = 'explorer-view-container';
+
+        if (!activeExplorerItem) {
+            skillTreeContainer.innerHTML = `<p style="padding: 2rem; text-align: center;">Select an item from the search panel to explore its connections.</p>`;
+            return;
+        }
+
+        const focalItem = getItemById(activeExplorerItem);
+        if (!focalItem) {
+            skillTreeContainer.innerHTML = `<p class="error">Error: Could not find the selected item.</p>`;
+            return;
+        }
+
+        const allItems = getAllItems();
+        const prerequisites = focalItem.prerequisites.map(p => getItemById(p.id)).filter(Boolean);
+        const dependents = allItems.filter(item => item.prerequisites.some(p => p.id === focalItem.id));
+
+        // --- Render Prerequisites (Parents) ---
+        if (prerequisites.length > 0) {
+            const prereqSection = document.createElement('div');
+            prereqSection.className = 'explorer-section';
+            prereqSection.innerHTML = '<h4 class="explorer-section-title">Prerequisites</h4>';
+            const prereqContainer = document.createElement('div');
+            prereqContainer.className = 'explorer-items-container';
+            prerequisites.forEach(item => {
+                prereqContainer.appendChild(createExplorerCard(item));
+            });
+            prereqSection.appendChild(prereqContainer);
+            skillTreeContainer.appendChild(prereqSection);
+        }
+
+        // --- Render Focal Item ---
+        const focalSection = document.createElement('div');
+        focalSection.className = 'explorer-section explorer-focal';
+        focalSection.appendChild(createSkillCard(focalItem));
+        skillTreeContainer.appendChild(focalSection);
+
+
+        // --- Render Dependents (Children) ---
+        if (dependents.length > 0) {
+            const dependentSection = document.createElement('div');
+            dependentSection.className = 'explorer-section';
+            dependentSection.innerHTML = '<h4 class="explorer-section-title">Dependents</h4>';
+            const dependentContainer = document.createElement('div');
+            dependentContainer.className = 'explorer-items-container';
+            dependents.forEach(item => {
+                dependentContainer.appendChild(createExplorerCard(item));
+            });
+            dependentSection.appendChild(dependentContainer);
+            skillTreeContainer.appendChild(dependentSection);
+        }
+    }
+
+    function createExplorerCard(item) {
+        const card = document.createElement('div');
+        card.className = 'explorer-card';
+        card.dataset.id = item.id;
+        card.innerHTML = `
+            <p class="name">${item.name}</p>
+            <p class="type">${item.type}</p>
+        `;
+        card.addEventListener('click', () => {
+            activeExplorerItem = item.id;
+            setView('explorer');
+        });
+        return card;
+    }
+
+
     function renderSkillTree() {
         skillTreeContainer.innerHTML = '';
         const allItems = getAllItems();
@@ -959,6 +1110,7 @@ function changeItemLevel(itemId, delta) {
     function init() {
         loadData();
         setView(currentView); // Set initial view from loaded data
+        renderSearchResults(); // Populate search results on load
     }
 
     init();

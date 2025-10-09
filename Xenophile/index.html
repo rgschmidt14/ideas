@@ -13,33 +13,53 @@
         <h1>Xenophile</h1>
         <p>Map your life's skill tree.</p>
     </header>
-    <main>
-        <div class="toolbar">
-            <div class="view-switcher">
-                <button id="view-alpha-btn" class="view-btn active">Alphabetical</button>
-                <button id="view-vtree-btn" class="view-btn">V-Tree</button>
-                <button id="view-htree-btn" class="view-btn">H-Tree</button>
+    <main id="app-container">
+        <!-- Left Pane: Search and Filter -->
+        <div id="left-pane">
+            <div class="pane-header">
+                <h2>Search & Filter</h2>
+                <button id="left-pane-toggle" class="pane-toggle-btn">&lt;</button>
             </div>
-            <div class="tree-controls" style="display: none;">
-                <button id="collapse-all-btn">Collapse All</button>
-                <button id="expand-all-btn">Expand All</button>
+            <div id="search-controls">
+                <input type="text" id="search-bar" placeholder="Search by name...">
+                <!-- Future filter controls will go here -->
             </div>
-            <div class="toolbar-group-right">
-                 <div class="discovery-mode-control">
-                    <label class="switch">
-                        <input type="checkbox" id="discovery-mode-toggle">
-                        <span class="slider round"></span>
-                    </label>
-                    <span class="discovery-label">Discovery Mode</span>
-                </div>
-                <input type="file" id="import-file-input" accept=".json" style="display: none;" />
-                <button id="import-btn" class="toolbar-btn">Import</button>
-                <button id="export-btn" class="toolbar-btn">Export</button>
-                <button id="add-skill-btn">Add New Item</button>
+            <div id="search-results-container">
+                <!-- Search results will be dynamically added here -->
             </div>
         </div>
-        <div id="skill-tree-container">
-            <!-- Skills will be rendered here -->
+
+        <!-- Right Pane: Main Content -->
+        <div id="right-pane">
+             <button id="right-pane-toggle" class="pane-toggle-btn" style="display: none;">&gt;</button>
+            <div class="toolbar">
+                <div id="view-switcher" class="view-switcher">
+                     <button id="view-explorer-btn" class="view-btn">Explorer</button>
+                    <button id="view-alpha-btn" class="view-btn active">Alphabetical</button>
+                    <button id="view-vtree-btn" class="view-btn">V-Tree</button>
+                    <button id="view-htree-btn" class="view-btn">H-Tree</button>
+                </div>
+                <div class="tree-controls" style="display: none;">
+                    <button id="collapse-all-btn">Collapse All</button>
+                    <button id="expand-all-btn">Expand All</button>
+                </div>
+                <div class="toolbar-group-right">
+                     <div class="discovery-mode-control">
+                        <label class="switch">
+                            <input type="checkbox" id="discovery-mode-toggle">
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="discovery-label">Discovery Mode</span>
+                    </div>
+                    <input type="file" id="import-file-input" accept=".json" style="display: none;" />
+                    <button id="import-btn" class="toolbar-btn">Import</button>
+                    <button id="export-btn" class="toolbar-btn">Export</button>
+                    <button id="add-skill-btn">Add New Item</button>
+                </div>
+            </div>
+            <div id="skill-tree-container">
+                <!-- Content (Explorer, Trees, List) will be rendered here -->
+            </div>
         </div>
     </main>
 
