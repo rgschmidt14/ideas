@@ -320,23 +320,23 @@ button[type="submit"]:hover {
     background-color: var(--factor-color);
 }
 
-.prerequisites-list {
+.parents-list {
     margin-top: 1rem;
     font-size: 0.9rem;
     border-top: 1px solid #eee;
     padding-top: 0.5rem;
 }
 
-.prerequisites-list strong {
+.parents-list strong {
     color: #444;
 }
 
-.prerequisites-list ul {
+.parents-list ul {
     margin: 0.5rem 0 0 0;
     padding-left: 20px;
 }
 
-.prerequisites-list li {
+.parents-list li {
     color: #555;
 }
 
@@ -463,9 +463,54 @@ input:checked + .slider:before {
 .skill-card.locked .card-controls,
 .skill-card.locked .level-container,
 .skill-card.locked .skill-type,
-.skill-card.locked .prerequisites-list,
+.skill-card.locked .parents-list,
 .skill-card.locked > p {
     display: none;
+}
+
+/* --- Focal Tree View --- */
+.focal-tree-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    gap: 1rem;
+}
+
+.focal-item-container {
+    padding: 1rem;
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+}
+
+.focal-lineage-container {
+    width: 100%;
+    display: none; /* Hidden by default */
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+.focal-lineage-container .h-tree-container,
+.focal-lineage-container .tree-container {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.show-parents-btn, .show-children-btn {
+    background-color: #6c757d;
+}
+.show-parents-btn:hover, .show-children-btn:hover {
+    background-color: #5a6268;
+}
+.show-parents-btn.active, .show-children-btn.active {
+    background-color: var(--skill-color);
 }
 
 /* Expandable Details Section */
@@ -567,6 +612,9 @@ input:checked + .slider:before {
 /* Search Controls */
 #search-controls {
     margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
 }
 
 #search-bar {
@@ -578,9 +626,100 @@ input:checked + .slider:before {
     box-sizing: border-box;
 }
 
+#filter-controls, #sort-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+#filter-controls label {
+    cursor: pointer;
+}
+
+#sort-controls select {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #ced4da;
+}
+
 #search-results-container {
     flex-grow: 1;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem; /* Space between result items */
+}
+
+/* New styles for search result items */
+.search-result-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #ced4da;
+    border-left-width: 5px;
+    border-radius: 5px;
+    background-color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+    box-sizing: border-box;
+}
+
+.search-result-item:hover {
+    background-color: #e9ecef;
+}
+
+.search-result-item.selected {
+    font-weight: bold;
+    background-color: #ddeeff; /* A light blue to indicate selection */
+}
+
+.search-result-item[data-item-type="skill"] {
+    border-left-color: var(--skill-color);
+}
+.search-result-item.selected[data-item-type="skill"] {
+    border-color: var(--skill-color);
+    border-left-width: 5px;
+}
+
+.search-result-item[data-item-type="faculty"] {
+    border-left-color: var(--faculty-color);
+}
+.search-result-item.selected[data-item-type="faculty"] {
+    border-color: var(--faculty-color);
+    border-left-width: 5px;
+}
+
+.search-result-item[data-item-type="factor"] {
+    border-left-color: var(--factor-color);
+}
+.search-result-item.selected[data-item-type="factor"] {
+    border-color: var(--factor-color);
+    border-left-width: 5px;
+}
+
+
+.item-tier {
+    font-weight: bold;
+    font-size: 0.9rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 10px;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.item-tier.skill {
+    background-color: var(--skill-color);
+}
+
+.item-tier.faculty {
+    background-color: var(--faculty-color);
+}
+
+.item-tier.factor {
+    background-color: var(--factor-color);
 }
 
 /* --- Collapsed Pane States --- */

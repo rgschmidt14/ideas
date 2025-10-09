@@ -24,7 +24,18 @@
             </div>
             <div id="search-controls">
                 <input type="text" id="search-bar" placeholder="Search by name...">
-                <!-- Future filter controls will go here -->
+                <div id="filter-controls">
+                    <label><input type="checkbox" class="filter-checkbox" value="skill" checked> Skills</label>
+                    <label><input type="checkbox" class="filter-checkbox" value="faculty" checked> Faculties</label>
+                    <label><input type="checkbox" class="filter-checkbox" value="factor" checked> Factors</label>
+                </div>
+                <div id="sort-controls">
+                    <label for="sort-select">Sort by:</label>
+                    <select id="sort-select">
+                        <option value="name">Name</option>
+                        <option value="tier">Tier</option>
+                    </select>
+                </div>
             </div>
             <div id="search-results-container">
                 <!-- Search results will be dynamically added here -->
@@ -36,10 +47,10 @@
              <button id="right-pane-toggle" class="pane-toggle-btn" style="display: none;">&gt;</button>
             <div class="toolbar">
                 <div id="view-switcher" class="view-switcher">
-                     <button id="view-explorer-btn" class="view-btn">Explorer</button>
-                    <button id="view-alpha-btn" class="view-btn active">Alphabetical</button>
+                    <button id="view-explorer-btn" class="view-btn active">Explorer</button>
                     <button id="view-vtree-btn" class="view-btn">V-Tree</button>
                     <button id="view-htree-btn" class="view-btn">H-Tree</button>
+                    <button id="view-global-btn" class="view-btn">Global</button>
                 </div>
                 <div class="tree-controls" style="display: none;">
                     <button id="collapse-all-btn">Collapse All</button>
