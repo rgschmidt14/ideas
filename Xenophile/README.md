@@ -36,6 +36,7 @@ Xenophile is currently a client-side web application, meaning all data is stored
 - [ ] **Centralized Search & Navigation:** Overhaul the UX to be search-first, allowing users to find an item and then explore its dependency tree in a focused view.
 - [ ] **Skill "Pass-Off" System:** Develop a mechanism or checklist to test if a user has learned a skill to a certain level.
 - [ ] **More complex prerequisite rules** (e.g., more than 2, OR conditions).
+    - *A philosophical note: While the current system is capped at two prerequisites for simplicity, the concept of needing more than two should be considered from both a practical and spiritual lens before being dismissed. How many fundamental components truly define a new skill?*
 - [ ] **Sharing skill trees** with others.
 - [x] Advanced graphical visualization of the skill tree.
 - [x] **Skill Leveling System:** Implement a 0-5 leveling system for each skill and faculty to track user proficiency. (Done 2025-10-02)
@@ -72,6 +73,13 @@ Here are a few technical suggestions to help bring the vision to life:
 ---
 
 ## Changelog
+
+**2025-10-08 (Evening):**
+- **New Item Type "Factor":** Introduced "Factors," a new item type for abstract concepts (e.g., 'manual dexterity') that can act as prerequisites, enabling more flexible dependency trees.
+- **Dynamic Type Changing:** The "Type" field in the edit modal is now always enabled, allowing users to convert an item between Skill, Faculty, and Factor.
+- **Color-Coded Tiers:** The tier display on each card (e.g., "T2") is now color-coded to match the item's type (Blue for Skill, Green for Faculty, Amber for Factor) for quick visual identification.
+- **Rich Text Descriptions:** All description fields now support Markdown, allowing for rich text formatting like bold, italics, lists, and clickable links.
+- **Factor & Checkbox Tagging:** Descriptions now support a custom `[factor:...]` syntax to render styled tags. Markdown task lists (`- [ ]` and `- [x]`) are also rendered as non-interactive checkboxes.
 
 **2025-10-08:**
 - **UI Cleanup (Card Header):** Reworked the header on each item card. Removed the `[+] Lvl [-]` controls and replaced them with a static display of the item's type and tier (e.g., "Skill (3)" or "Faculty (0)"). This provides a cleaner look and emphasizes the item's classification over its current level.

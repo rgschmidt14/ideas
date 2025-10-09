@@ -3,6 +3,8 @@
     --skill-color-dark: #0056b3;
     --faculty-color: #28a745; /* Green */
     --faculty-color-dark: #1e7e34;
+    --factor-color: #ffc107; /* Amber */
+    --factor-color-dark: #e0a800;
 }
 
 body {
@@ -298,12 +300,24 @@ button[type="submit"]:hover {
 
 .card-tier-display {
     font-size: 0.9rem;
-    font-weight: 500;
-    color: #495057;
-    background-color: #e9ecef;
+    font-weight: bold;
+    color: white;
     padding: 0.2rem 0.6rem;
     border-radius: 10px;
     white-space: nowrap;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+}
+
+.tier-skill {
+    background-color: var(--skill-color);
+}
+
+.tier-faculty {
+    background-color: var(--faculty-color);
+}
+
+.tier-factor {
+    background-color: var(--factor-color);
 }
 
 .prerequisites-list {

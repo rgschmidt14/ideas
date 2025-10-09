@@ -134,7 +134,12 @@ document.addEventListener("DOMContentLoaded", function() {
         if (savedState) {
             const state = JSON.parse(savedState);
 
-            chartData = state.chartData || [];
+            if (state.chartData) {
+                // Clear the existing array while keeping the reference for the chart
+                chartData.length = 0;
+                // Push the loaded data into the array
+                Array.prototype.push.apply(chartData, state.chartData);
+            }
 
             if(state.regressionType) {
                 document.getElementById("regression-type").value = state.regressionType;
@@ -409,8 +414,8 @@ document.addEventListener("DOMContentLoaded", function() {
         const points = data.map(p => [p.x, p.y]);
         if (points.length <= degree) return null;
 
-        const regression = ss.polynomialRegression(points, degree);
-        const predict = (x) => regression.predict(x)[1];
+        const result = regression.polynomial(points, { order: degree });
+        const predict = (x) => result.predict(x)[1];
 
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
@@ -421,7 +426,8 @@ document.addEventListener("DOMContentLoaded", function() {
             lineData.push({ x, y: predict(x) });
         }
 
-        const equation = regression.string;
+        const equation = result.string;
+        // R-squared calculation is not part of regression-js, so we keep using simple-statistics for that.
         const rSquared = ss.rSquared(points, predict);
 
         return { data: lineData, equation, rSquared };
