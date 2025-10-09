@@ -36,19 +36,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
     const sortSelect = document.getElementById('sort-select');
 
+    // Character Creator Elements
+    const newCharNameInput = document.getElementById('new-char-name');
+    const createCharBtn = document.getElementById('create-char-btn');
+    const charSelect = document.getElementById('char-select');
+    const characterSheetContainer = document.getElementById('character-sheet-container');
+
 
     // --- Game Data & Constants ---
     const STORAGE_KEY = 'Xenophile';
     const VIEW_MODE_KEY = 'XenophileViewMode';
     const DISCOVERY_MODE_KEY = 'XenophileDiscoveryMode';
+    const CURRENT_CHAR_KEY = 'XenophileCurrentChar';
     let gameData = {
         skills: [],
         faculties: [],
         factors: [],
+        characters: [],
     };
     let currentView = 'explorer'; // 'explorer', 'v-tree', 'h-tree', or 'global'
     let discoveryModeEnabled = false;
     let activeExplorerItem = null; // ID of the item in the explorer view
+    let currentCharacterId = null;
 
     // --- Pane Management ---
     function togglePane(pane, isCollapsing) {
@@ -90,6 +99,18 @@ document.addEventListener('DOMContentLoaded', () => {
         let filteredItems = allItems.filter(item => {
             const nameMatch = item.name.toLowerCase().includes(searchTerm);
             const typeMatch = activeFilters.has(item.type);
+
+            // Discovery Mode Filter
+            if (discoveryModeEnabled && currentCharacterId) {
+                const isAcquirable = canCharacterAcquire(item);
+                const char = gameData.characters.find(c => c.id === currentCharacterId);
+                const hasItem = char.skills.some(s => s.id === item.id) || char.faculties.includes(item.id) || char.factors.includes(item.id);
+                // Show only items that are acquirable and not already owned.
+                if (!isAcquirable || hasItem) {
+                    return false;
+                }
+            }
+
             return nameMatch && typeMatch;
         });
 
@@ -155,12 +176,19 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(gameData));
         localStorage.setItem(VIEW_MODE_KEY, currentView);
         localStorage.setItem(DISCOVERY_MODE_KEY, JSON.stringify(discoveryModeEnabled));
+        if (currentCharacterId) {
+            localStorage.setItem(CURRENT_CHAR_KEY, currentCharacterId);
+        } else {
+            localStorage.removeItem(CURRENT_CHAR_KEY);
+        }
     }
 
     function loadData() {
         const savedData = localStorage.getItem(STORAGE_KEY);
         const savedView = localStorage.getItem(VIEW_MODE_KEY);
         const savedDiscovery = localStorage.getItem(DISCOVERY_MODE_KEY);
+        const savedCharId = localStorage.getItem(CURRENT_CHAR_KEY);
+
 
         if (savedView) {
             currentView = savedView;
@@ -169,6 +197,10 @@ document.addEventListener('DOMContentLoaded', () => {
             discoveryModeEnabled = JSON.parse(savedDiscovery);
             discoveryModeToggle.checked = discoveryModeEnabled;
         }
+        if (savedCharId) {
+            currentCharacterId = savedCharId;
+        }
+
 
         if (savedData) {
              try {
@@ -182,6 +214,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         gameData.factors = [];
                         needsSave = true;
                     }
+                    // Add characters array if it doesn't exist
+                    if (!gameData.characters) {
+                        gameData.characters = [];
+                        needsSave = true;
+                    }
+                    // Add factors array to each character if it doesn't exist
+                    gameData.characters.forEach(char => {
+                        if (!char.factors) {
+                            char.factors = [];
+                            needsSave = true;
+                        }
+                    });
 
                     const allItems = [...gameData.skills, ...gameData.faculties, ...gameData.factors];
                     allItems.forEach(item => {
@@ -758,18 +802,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 
-function areParentsMet(item) {
-    if (!item.parents || item.parents.length === 0) {
-        return true; // No parents, always considered met.
-    }
-    return item.parents.every(parentObj => {
-        const parentItem = getItemById(parentObj.id);
-        // If a parent item doesn't exist for some reason, fail open (treat as met)
-        if (!parentItem) return true;
-        // Check if the user's level for the parent item meets or exceeds the required level
-        return (parentItem.level || 0) >= parentObj.requiredLevel;
-    });
-}
 
 function changeItemLevel(itemId, delta) {
     const item = getItemById(itemId);
@@ -802,16 +834,6 @@ function renderFormattedText(text) {
         card.className = 'skill-card';
         card.dataset.id = item.id;
         card.dataset.type = item.type;
-
-        // --- Discovery Mode Logic ---
-        const isDiscovered = areParentsMet(item);
-        if (discoveryModeEnabled && !isDiscovered) {
-            card.classList.add('locked');
-            const cardTitle = document.createElement('h3');
-            cardTitle.textContent = '???';
-            card.appendChild(cardTitle);
-            return card; // Return the locked card
-        }
 
 
     const titleContainer = document.createElement('div');
@@ -875,6 +897,29 @@ function renderFormattedText(text) {
         cardControls.appendChild(quickAddBtn);
         cardControls.appendChild(editBtn);
         cardControls.appendChild(deleteBtn);
+
+        // --- Character Progression Controls ---
+        if (currentCharacterId && item.type !== 'factor') {
+            const char = gameData.characters.find(c => c.id === currentCharacterId);
+            if (char) {
+                const hasItem = char.skills.some(s => s.id === item.id) || char.faculties.includes(item.id);
+                const charControl = document.createElement('div');
+                charControl.className = 'char-control';
+
+                if (hasItem) {
+                    charControl.innerHTML = '<span class="acquired-tag">Acquired</span>';
+                } else {
+                    const addBtn = document.createElement('button');
+                    addBtn.textContent = 'Add to Character';
+                    addBtn.className = 'add-to-char-btn';
+                    addBtn.disabled = !canCharacterAcquire(item);
+                    addBtn.onclick = () => addItemToCharacter(item.id);
+                    charControl.appendChild(addBtn);
+                }
+                cardControls.appendChild(charControl);
+            }
+        }
+
 
     card.appendChild(titleContainer);
         card.appendChild(cardDescription);
@@ -1153,7 +1198,7 @@ function renderFormattedText(text) {
     discoveryModeToggle.addEventListener('change', () => {
         discoveryModeEnabled = discoveryModeToggle.checked;
         saveData();
-        setView(currentView); // Re-render the view with the new mode
+        renderLeftPane(); // Re-render the left pane to apply the filter.
     });
 
 
@@ -1179,10 +1224,250 @@ function renderFormattedText(text) {
 
     dbTab.addEventListener('click', () => switchTab(dbTab, dbContent));
     ccTab.addEventListener('click', () => {
-        // Special handling for the placeholder CC content
         switchTab(ccTab, ccContent);
-        ccContent.style.display = 'block'; // It doesn't need to be flex
+        renderCharacterCreatorTab();
     });
+
+    // --- Character Creator Logic ---
+
+    function renderCharacterCreatorTab() {
+        // Populate dropdown
+        charSelect.innerHTML = '<option value="">None</option>'; // Clear existing options
+        gameData.characters.forEach(char => {
+            const option = document.createElement('option');
+            option.value = char.id;
+            option.textContent = char.name;
+            charSelect.appendChild(option);
+        });
+
+        // Set current selection
+        if (currentCharacterId) {
+            charSelect.value = currentCharacterId;
+        } else {
+            charSelect.value = "";
+        }
+
+        // Render the sheet for the current character
+        renderCharacterSheet();
+    }
+
+    function renderCharacterSheet() {
+        characterSheetContainer.innerHTML = ''; // Clear current sheet
+
+        const char = gameData.characters.find(c => c.id === currentCharacterId);
+
+        if (!char) {
+            characterSheetContainer.innerHTML = '<p>Select a character to see their sheet.</p>';
+            return;
+        }
+
+        const nameHeader = document.createElement('h3');
+        nameHeader.textContent = char.name;
+        characterSheetContainer.appendChild(nameHeader);
+
+        // --- Skills Section ---
+        const skillsSection = document.createElement('div');
+        skillsSection.className = 'char-sheet-section';
+        const skillsHeader = document.createElement('h4');
+        skillsHeader.textContent = 'Acquired Skills';
+        skillsSection.appendChild(skillsHeader);
+
+        if (char.skills && char.skills.length > 0) {
+            const skillsList = document.createElement('ul');
+            char.skills.forEach(charSkill => {
+                const skillItem = getItemById(charSkill.id);
+                if (skillItem) {
+                    const li = document.createElement('li');
+                    li.textContent = `${skillItem.name} (Lvl ${charSkill.level})`;
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.className = 'remove-item-btn';
+                    removeBtn.onclick = () => removeItemFromCharacter(skillItem.id);
+                    li.appendChild(removeBtn);
+                    skillsList.appendChild(li);
+                }
+            });
+            skillsSection.appendChild(skillsList);
+        } else {
+            skillsSection.appendChild(document.createElement('p')).textContent = 'No skills acquired yet.';
+        }
+        characterSheetContainer.appendChild(skillsSection);
+
+
+        // --- Faculties Section ---
+        const facultiesSection = document.createElement('div');
+        facultiesSection.className = 'char-sheet-section';
+        const facultiesHeader = document.createElement('h4');
+        facultiesHeader.textContent = 'Acquired Faculties';
+        facultiesSection.appendChild(facultiesHeader);
+
+        if (char.faculties && char.faculties.length > 0) {
+            const facultiesList = document.createElement('ul');
+            char.faculties.forEach(facultyId => {
+                const facultyItem = getItemById(facultyId);
+                if (facultyItem) {
+                    const li = document.createElement('li');
+                    li.textContent = facultyItem.name;
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.className = 'remove-item-btn';
+                    removeBtn.onclick = () => removeItemFromCharacter(facultyItem.id);
+                    li.appendChild(removeBtn);
+                    facultiesList.appendChild(li);
+                }
+            });
+            facultiesSection.appendChild(facultiesList);
+        } else {
+            facultiesSection.appendChild(document.createElement('p')).textContent = 'No faculties acquired yet.';
+        }
+        characterSheetContainer.appendChild(facultiesSection);
+
+        // --- Factors Section ---
+        const factorsSection = document.createElement('div');
+        factorsSection.className = 'char-sheet-section';
+        const factorsHeader = document.createElement('h4');
+        factorsHeader.textContent = 'Acquired Factors';
+        factorsSection.appendChild(factorsHeader);
+
+         if (char.factors && char.factors.length > 0) {
+            const factorsList = document.createElement('ul');
+            char.factors.forEach(factorId => {
+                const factorItem = getItemById(factorId);
+                if (factorItem) {
+                    const li = document.createElement('li');
+                    li.textContent = factorItem.name;
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.className = 'remove-item-btn';
+                    removeBtn.onclick = () => removeItemFromCharacter(factorItem.id);
+                    li.appendChild(removeBtn);
+                    factorsList.appendChild(li);
+                }
+            });
+            factorsSection.appendChild(factorsList);
+        } else {
+            factorsSection.appendChild(document.createElement('p')).textContent = 'No factors acquired yet.';
+        }
+        characterSheetContainer.appendChild(factorsSection);
+
+    }
+
+    function canCharacterAcquire(item) {
+        const char = gameData.characters.find(c => c.id === currentCharacterId);
+        if (!char || !item) return false;
+
+        // Tier 0 items are always acquirable.
+        if (item.tier === 0) {
+            return true;
+        }
+
+        // Check if all parent prerequisites are met.
+        return item.parents.every(parentReq => {
+            const parentItem = getItemById(parentReq.id);
+            if (!parentItem) return false; // Should not happen, but a safeguard.
+
+            if (parentItem.type === 'skill') {
+                const charSkill = char.skills.find(s => s.id === parentReq.id);
+                return charSkill && charSkill.level >= parentReq.requiredLevel;
+            } else if (parentItem.type === 'faculty') {
+                return char.faculties.includes(parentReq.id);
+            } else if (parentItem.type === 'factor') {
+                return char.factors.includes(parentReq.id);
+            }
+            return false;
+        });
+    }
+
+
+    function addItemToCharacter(itemId) {
+        const char = gameData.characters.find(c => c.id === currentCharacterId);
+        if (!char) return;
+
+        const item = getItemById(itemId);
+        if (!item) return;
+
+        // Add the item to the correct array in the character's data.
+        if (item.type === 'skill') {
+            // Skills are added at level 1 by default.
+            if (!char.skills.some(s => s.id === itemId)) {
+                char.skills.push({ id: itemId, level: 1 });
+            }
+        } else if (item.type === 'faculty') {
+            if (!char.faculties.includes(itemId)) {
+                char.faculties.push(itemId);
+            }
+        } else if (item.type === 'factor') {
+            if (!char.factors.includes(itemId)) {
+                char.factors.push(itemId);
+            }
+        }
+
+        saveData();
+        renderCharacterSheet();
+        // Re-render the main view to update the button states.
+        setView(currentView);
+    }
+
+
+    function removeItemFromCharacter(itemId) {
+        const char = gameData.characters.find(c => c.id === currentCharacterId);
+        if (!char) return;
+
+        const item = getItemById(itemId);
+        if (!item) return;
+
+        if (item.type === 'skill') {
+            char.skills = char.skills.filter(s => s.id !== itemId);
+        } else if (item.type === 'faculty') {
+            char.faculties = char.faculties.filter(id => id !== itemId);
+        } else if (item.type === 'factor') {
+            char.factors = char.factors.filter(id => id !== itemId);
+        }
+
+
+        saveData();
+        renderCharacterSheet();
+        // We also need to re-render the main view in case the "Add" button state needs to change
+        setView(currentView);
+    }
+
+
+    function createCharacter() {
+        const name = newCharNameInput.value.trim();
+        if (!name) {
+            alert('Please enter a character name.');
+            return;
+        }
+        if (gameData.characters.some(char => char.name === name)) {
+            alert('A character with this name already exists.');
+            return;
+        }
+
+        const newChar = {
+            id: `char_${Date.now()}`,
+            name: name,
+            skills: [], // Array of { id: skillId, level: number }
+            faculties: [], // Array of faculty IDs
+            factors: [], // Array of factor IDs
+        };
+
+        gameData.characters.push(newChar);
+        currentCharacterId = newChar.id;
+        newCharNameInput.value = ''; // Clear input
+
+        saveData();
+        renderCharacterCreatorTab();
+    }
+
+    function selectCharacter() {
+        currentCharacterId = charSelect.value || null;
+        saveData();
+        renderCharacterCreatorTab();
+        renderLeftPane(); // Update acquirable items when character changes
+    }
+
+    createCharBtn.addEventListener('click', createCharacter);
+    charSelect.addEventListener('change', selectCharacter);
 
 
     // --- Initialization ---
@@ -1190,6 +1475,7 @@ function renderFormattedText(text) {
         loadData();
         setView(currentView); // Set initial view from loaded data
         renderLeftPane(); // Populate search results on load
+        renderCharacterCreatorTab(); // Populate character tab on load
     }
 
     init();

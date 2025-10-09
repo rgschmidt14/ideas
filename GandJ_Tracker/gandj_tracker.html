@@ -65,7 +65,7 @@
                             <input type="checkbox" id="discovery-mode-toggle">
                             <span class="slider round"></span>
                         </label>
-                        <span class="discovery-label">Discovery Mode</span>
+                        <span class="discovery-label">Show only acquirable</span>
                     </div>
                     <input type="file" id="import-file-input" accept=".json" style="display: none;" />
                     <button id="import-btn" class="toolbar-btn">Import</button>
@@ -80,8 +80,25 @@
     </main>
 
     <div id="character-creator-container" class="tab-content" style="display: none;">
-        <h2>Character Creator</h2>
-        <p>This feature is coming soon!</p>
+        <div id="cc-left-pane">
+            <h2>Character Management</h2>
+            <div id="char-creation-controls">
+                <input type="text" id="new-char-name" placeholder="New character name...">
+                <button id="create-char-btn">Create</button>
+            </div>
+            <div id="char-selection-controls">
+                <label for="char-select">Current Character:</label>
+                <select id="char-select">
+                    <option value="">None</option>
+                </select>
+            </div>
+        </div>
+        <div id="cc-right-pane">
+            <h2>Character Sheet</h2>
+            <div id="character-sheet-container">
+                <p>Select a character to see their sheet.</p>
+            </div>
+        </div>
     </div>
 
     <!-- Add/Edit Modal -->
