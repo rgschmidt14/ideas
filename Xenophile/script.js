@@ -14,10 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const itemNameInput = document.getElementById('item-name');
     const itemDescriptionInput = document.getElementById('item-description');
     const itemTypeSelect = document.getElementById('item-type');
-    const viewAlphaBtn = document.getElementById('view-alpha-btn');
     const viewVTreeBtn = document.getElementById('view-vtree-btn');
     const viewHTreeBtn = document.getElementById('view-htree-btn');
     const viewExplorerBtn = document.getElementById('view-explorer-btn');
+    const viewGlobalBtn = document.getElementById('view-global-btn');
     const treeControls = document.querySelector('.tree-controls');
     const collapseAllBtn = document.getElementById('collapse-all-btn');
     const expandAllBtn = document.getElementById('expand-all-btn');
@@ -33,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const rightPaneToggle = document.getElementById('right-pane-toggle');
     const searchBar = document.getElementById('search-bar');
     const searchResultsContainer = document.getElementById('search-results-container');
+    const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
+    const sortSelect = document.getElementById('sort-select');
 
 
     // --- Game Data & Constants ---
@@ -44,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
         faculties: [],
         factors: [],
     };
-    let currentView = 'alpha'; // 'alpha', 'v-tree', 'h-tree', or 'explorer'
+    let currentView = 'explorer'; // 'explorer', 'v-tree', 'h-tree', or 'global'
     let discoveryModeEnabled = false;
     let activeExplorerItem = null; // ID of the item in the explorer view
 
@@ -71,15 +73,37 @@ document.addEventListener('DOMContentLoaded', () => {
     rightPaneToggle.addEventListener('click', () => togglePane(leftPane, false));
 
 
-    // --- Search Functionality ---
-    function renderSearchResults(searchTerm = '') {
+    // --- Search, Filter, and Sort Functionality ---
+    function renderLeftPane() {
         const allItems = getAllItems();
-        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+        const searchTerm = searchBar.value.toLowerCase();
+        const sortBy = sortSelect.value;
 
-        const filteredItems = allItems.filter(item =>
-            item.name.toLowerCase().includes(lowerCaseSearchTerm)
-        );
+        const activeFilters = new Set();
+        filterCheckboxes.forEach(cb => {
+            if (cb.checked) {
+                activeFilters.add(cb.value);
+            }
+        });
 
+        // 1. Filter
+        let filteredItems = allItems.filter(item => {
+            const nameMatch = item.name.toLowerCase().includes(searchTerm);
+            const typeMatch = activeFilters.has(item.type);
+            return nameMatch && typeMatch;
+        });
+
+        // 2. Sort
+        filteredItems.sort((a, b) => {
+            if (sortBy === 'tier') {
+                if (a.tier !== b.tier) {
+                    return a.tier - b.tier;
+                }
+            }
+            return a.name.localeCompare(b.name); // Default/secondary sort is by name
+        });
+
+        // 3. Render
         searchResultsContainer.innerHTML = ''; // Clear previous results
 
         if (filteredItems.length === 0) {
@@ -87,26 +111,43 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        filteredItems.sort((a, b) => a.name.localeCompare(b.name));
-
         filteredItems.forEach(item => {
             const resultItem = document.createElement('div');
             resultItem.className = 'search-result-item';
             resultItem.dataset.id = item.id;
-            resultItem.innerHTML = `
-                <span class="result-name">${item.name}</span>
-                <span class="result-tier">[T${item.tier}]</span>
-                <span class="result-type">[${item.type}]</span>
-            `;
+            resultItem.dataset.itemType = item.type; // Use dataset for CSS attribute selectors
+
+            const itemName = document.createElement('span');
+            itemName.className = 'item-name';
+            itemName.textContent = item.name;
+
+            const itemTier = document.createElement('span');
+            itemTier.className = `item-tier ${item.type}`; // e.g., "item-tier skill"
+            itemTier.textContent = `T${item.tier}`;
+
+            resultItem.appendChild(itemName);
+            resultItem.appendChild(itemTier);
+
+            // Highlight if it's the active item
+            if (item.id === activeExplorerItem) {
+                resultItem.classList.add('selected');
+            }
+
             resultItem.addEventListener('click', () => {
                 activeExplorerItem = item.id;
-                setView('explorer');
+                // Visually update selection immediately
+                document.querySelectorAll('.search-result-item').forEach(el => el.classList.remove('selected'));
+                resultItem.classList.add('selected');
+                // Re-render the current view with the new focal item
+                setView(currentView);
             });
             searchResultsContainer.appendChild(resultItem);
         });
     }
 
-    searchBar.addEventListener('input', () => renderSearchResults(searchBar.value));
+    searchBar.addEventListener('input', renderLeftPane);
+    sortSelect.addEventListener('change', renderLeftPane);
+    filterCheckboxes.forEach(cb => cb.addEventListener('change', renderLeftPane));
 
 
     // --- Data Functions ---
@@ -318,14 +359,14 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.style.display = 'block';
     }
 
-    function openModalForQuickAdd(prereqId) {
+    function openModalForQuickAdd(parentId) {
         openModalForCreate(); // Start with a fresh modal
-        modalTitle.textContent = 'Create New Dependent Item';
+        modalTitle.textContent = 'Create New Child Item';
 
-        // Pre-select the prerequisite
-        const prereqItem = getItemById(prereqId);
-        if(prereqItem) {
-            prereq1Select.value = prereqId;
+        // Pre-select the parent
+        const parentItem = getItemById(parentId);
+        if(parentItem) {
+            prereq1Select.value = parentId;
             isTierZeroCheckbox.checked = false;
             prerequisitesContainer.style.display = 'block';
         }
@@ -397,19 +438,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let prerequisites = [];
         if (!isTierZero) {
-            const prereq1Id = prereq1Select.value;
-            const prereq2Id = prereq2Select.value;
-            const prereq1Level = parseInt(document.getElementById('prereq1-level').value) || 1;
-            const prereq2Level = parseInt(document.getElementById('prereq2-level').value) || 1;
+            const parent1Id = prereq1Select.value;
+            const parent2Id = prereq2Select.value;
+            const parent1Level = parseInt(document.getElementById('prereq1-level').value) || 1;
+            const parent2Level = parseInt(document.getElementById('prereq2-level').value) || 1;
 
 
-             if (prereq1Id === id || prereq2Id === id) {
-                alert('An item cannot be its own prerequisite.');
+             if (parent1Id === id || parent2Id === id) {
+                alert('An item cannot be its own parent.');
                 return;
             }
-            // Only add unique, non-empty prerequisites
-            if(prereq1Id) prerequisites.push({ id: prereq1Id, requiredLevel: prereq1Level });
-            if(prereq2Id && prereq1Id !== prereq2Id) prerequisites.push({ id: prereq2Id, requiredLevel: prereq2Level });
+            // Only add unique, non-empty prerequisites/parents
+            if(parent1Id) prerequisites.push({ id: parent1Id, requiredLevel: parent1Level });
+            if(parent2Id && parent1Id !== parent2Id) prerequisites.push({ id: parent2Id, requiredLevel: parent2Level });
 
         }
 
@@ -466,11 +507,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Deletion Logic ---
     function deleteItem(itemId) {
         const allItems = getAllItems();
-        // Update check to look inside prerequisite objects
-        const isPrerequisite = allItems.some(item => item.prerequisites.some(p => p.id === itemId));
+        // An item is a "parent" if any other item lists it as a prerequisite.
+        const isParent = allItems.some(item => item.prerequisites.some(p => p.id === itemId));
 
-        if (isPrerequisite) {
-            alert('Cannot delete this item as it is a prerequisite for another item. Please remove the dependency first.');
+        if (isParent) {
+            alert('Cannot delete this item as it is a parent to another item. Please remove the child dependency first.');
             return;
         }
 
@@ -491,15 +532,16 @@ document.addEventListener('DOMContentLoaded', () => {
     function setView(view) {
         currentView = view;
         viewExplorerBtn.classList.toggle('active', view === 'explorer');
-        viewAlphaBtn.classList.toggle('active', view === 'alpha');
         viewVTreeBtn.classList.toggle('active', view === 'v-tree');
         viewHTreeBtn.classList.toggle('active', view === 'h-tree');
+        viewGlobalBtn.classList.toggle('active', view === 'global');
 
 
         const vTreeStylesheet = document.getElementById('v-tree-stylesheet');
         const hTreeStylesheet = document.getElementById('h-tree-stylesheet');
 
         // Reset styles and container properties
+        skillTreeContainer.innerHTML = ''; // Clear content for all views initially
         skillTreeContainer.className = '';
         skillTreeContainer.style.position = '';
 
@@ -507,33 +549,31 @@ document.addEventListener('DOMContentLoaded', () => {
             treeControls.style.display = 'none';
             vTreeStylesheet.disabled = true;
             hTreeStylesheet.disabled = true;
-            // The renderExplorerView function will be implemented in the next step.
-            // For now, we'll just show a placeholder.
             renderExplorerView();
         } else if (view === 'v-tree') {
             treeControls.style.display = 'flex';
             vTreeStylesheet.disabled = false;
             hTreeStylesheet.disabled = true;
-            renderGenealogyTree();
+            renderFocalTree();
         } else if (view === 'h-tree') {
             treeControls.style.display = 'flex';
             vTreeStylesheet.disabled = true;
             hTreeStylesheet.disabled = false;
-            renderHorizontalTree();
-        } else { // 'alpha'
+            renderFocalTree();
+        } else if (view === 'global') {
             treeControls.style.display = 'none';
             vTreeStylesheet.disabled = true;
             hTreeStylesheet.disabled = true;
-            renderSkillTree();
+            skillTreeContainer.innerHTML = '<p style="padding: 2rem; text-align: center; font-size: 1.2rem;">Global View: Coming Soon!</p>';
         }
 
         saveData(); // Save the new view state
     }
 
     viewExplorerBtn.addEventListener('click', () => setView('explorer'));
-    viewAlphaBtn.addEventListener('click', () => setView('alpha'));
     viewVTreeBtn.addEventListener('click', () => setView('v-tree'));
     viewHTreeBtn.addEventListener('click', () => setView('h-tree'));
+    viewGlobalBtn.addEventListener('click', () => setView('global'));
 
 
     function setAllBranchesCollapsed(collapsed) {
@@ -563,164 +603,160 @@ document.addEventListener('DOMContentLoaded', () => {
     collapseAllBtn.addEventListener('click', () => setAllBranchesCollapsed(true));
     expandAllBtn.addEventListener('click', () => setAllBranchesCollapsed(false));
 
-    // --- Shared Rendering Logic ---
-    function getTreeRoots() {
-        const allItems = getAllItems();
-        const prerequisiteIds = new Set();
-        allItems.forEach(item => {
-        item.prerequisites.forEach(prereqObj => {
-            prerequisiteIds.add(prereqObj.id);
-            });
-        });
-        return allItems.filter(item => !prerequisiteIds.has(item.id));
-    }
-
-
     // --- Rendering ---
-    function renderHorizontalTree() {
-        skillTreeContainer.innerHTML = '';
+    function renderFocalTree() {
+        skillTreeContainer.className = 'focal-tree-view'; // New class for styling
         skillTreeContainer.style.position = 'relative';
-        const allItems = getAllItems();
-        if (allItems.length === 0) {
-            skillTreeContainer.innerHTML = '<p>No items to display.</p>';
+
+        if (!activeExplorerItem) {
+            skillTreeContainer.innerHTML = `<p style="padding: 2rem; text-align: center;">Select an item from the left panel to view its family tree.</p>`;
             return;
         }
 
-        const roots = getTreeRoots();
-        const treeContainer = document.createElement('div');
-        treeContainer.className = 'h-tree-container';
-
-        roots.forEach(rootItem => {
-            const treeRootElement = document.createElement('div');
-            treeRootElement.className = 'h-tree-root';
-            renderHorizontalTreeBranch(rootItem, treeRootElement);
-            treeContainer.appendChild(treeRootElement);
-        });
-
-        skillTreeContainer.appendChild(treeContainer);
-
-        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.classList.add('h-connector-lines');
-        skillTreeContainer.insertBefore(svg, skillTreeContainer.firstChild);
-        setTimeout(() => drawHorizontalConnectingLines(svg), 100);
-    }
-
-    function renderHorizontalTreeBranch(item, parentElement) {
-        if (!item) return;
-
-        const nodeGroup = document.createElement('div');
-        nodeGroup.className = 'h-tree-node-group';
-
-        const card = createSkillCard(item);
-        nodeGroup.appendChild(card);
-
-        const hasPrerequisites = item.prerequisites && item.prerequisites.length > 0;
-        if (hasPrerequisites) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'h-tree-children';
-
-        item.prerequisites.forEach(prereqObj => {
-            const prereqItem = getItemById(prereqObj.id);
-                renderHorizontalTreeBranch(prereqItem, childrenContainer);
-            });
-            nodeGroup.appendChild(childrenContainer);
-
-            const toggleBtn = document.createElement('button');
-            toggleBtn.className = 'toggle-children-h';
-            card.appendChild(toggleBtn);
-
-            toggleBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isCollapsed = childrenContainer.classList.toggle('collapsed');
-                toggleBtn.classList.toggle('collapsed', isCollapsed);
-                setTimeout(() => {
-                    const svg = skillTreeContainer.querySelector('svg.h-connector-lines');
-                    if (svg) drawHorizontalConnectingLines(svg);
-                }, 200);
-            });
-        }
-        parentElement.appendChild(nodeGroup);
-    }
-
-
-    function renderGenealogyTree() {
-        skillTreeContainer.innerHTML = '';
-        skillTreeContainer.style.position = 'relative';
-        const allItems = getAllItems();
-        if (allItems.length === 0) {
-            skillTreeContainer.innerHTML = '<p>No items to display.</p>';
+        const focalItem = getItemById(activeExplorerItem);
+        if (!focalItem) {
+            skillTreeContainer.innerHTML = `<p class="error">Error: Could not find the selected item.</p>`;
             return;
         }
 
-        const roots = getTreeRoots();
-        const treeContainer = document.createElement('div');
-        treeContainer.className = 'tree-container';
+        // Main container for the focal view
+        const focalContainer = document.createElement('div');
+        focalContainer.className = 'focal-item-container';
 
-        roots.forEach(rootItem => {
-            const treeRootElement = document.createElement('div');
-            treeRootElement.className = 'tree-root';
-            renderVerticalTreeBranch(rootItem, treeRootElement);
-            treeContainer.appendChild(treeRootElement);
-        });
+        const parentsContainer = document.createElement('div');
+        parentsContainer.id = 'focal-parents-container';
+        parentsContainer.className = 'focal-lineage-container';
 
-        skillTreeContainer.appendChild(treeContainer);
+        const childrenContainer = document.createElement('div');
+        childrenContainer.id = 'focal-children-container';
+        childrenContainer.className = 'focal-lineage-container';
 
-        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.classList.add('connector-lines');
-        skillTreeContainer.insertBefore(svg, skillTreeContainer.firstChild);
-        setTimeout(() => drawConnectingLines(svg), 100);
-    }
+        const focalCard = createSkillCard(focalItem);
+        focalContainer.appendChild(focalCard);
 
-    function renderVerticalTreeBranch(item, parentElement) {
-        if (!item) return;
+        skillTreeContainer.appendChild(parentsContainer);
+        skillTreeContainer.appendChild(focalContainer);
+        skillTreeContainer.appendChild(childrenContainer);
 
-        const nodeGroup = document.createElement('div');
-        nodeGroup.className = 'tree-node-group';
-
-        const card = createSkillCard(item);
-        nodeGroup.appendChild(card);
-
-        const hasPrerequisites = item.prerequisites && item.prerequisites.length > 0;
-        if (hasPrerequisites) {
-            const childrenContainer = document.createElement('div');
-            childrenContainer.className = 'tree-children';
-
-        item.prerequisites.forEach(prereqObj => {
-            const prereqItem = getItemById(prereqObj.id);
-                renderVerticalTreeBranch(prereqItem, childrenContainer);
-            });
-            nodeGroup.appendChild(childrenContainer);
-
-            // Add toggle button
-            const toggleBtn = document.createElement('button');
-            toggleBtn.className = 'toggle-children'; // Default to expanded
-            card.appendChild(toggleBtn);
-
-            toggleBtn.addEventListener('click', (e) => {
+        // Attach event listeners to the new buttons
+        const showParentsBtn = focalCard.querySelector('.show-parents-btn');
+        if (showParentsBtn) {
+            showParentsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const isCollapsed = childrenContainer.classList.toggle('collapsed');
-                toggleBtn.classList.toggle('collapsed', isCollapsed);
-                // Redraw lines after animation
-                setTimeout(() => {
-                    const svg = skillTreeContainer.querySelector('svg.connector-lines');
-                    if (svg) drawConnectingLines(svg);
-                }, 200);
+                // Toggle based on the container being empty, which is more reliable
+                const isEmpty = parentsContainer.innerHTML.trim() === '';
+                showParentsBtn.classList.toggle('active', isEmpty);
+                if (isEmpty) {
+                    renderParentTree(focalItem, parentsContainer);
+                    parentsContainer.style.display = 'flex';
+                } else {
+                    parentsContainer.innerHTML = '';
+                    parentsContainer.style.display = 'none';
+                }
             });
         }
-        parentElement.appendChild(nodeGroup);
+
+        const showChildrenBtn = focalCard.querySelector('.show-children-btn');
+        if (showChildrenBtn) {
+            showChildrenBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isEmpty = childrenContainer.innerHTML.trim() === '';
+                showChildrenBtn.classList.toggle('active', isEmpty);
+                 if (isEmpty) {
+                    renderChildrenTree(focalItem, childrenContainer);
+                    childrenContainer.style.display = 'flex';
+                } else {
+                    childrenContainer.innerHTML = '';
+                    childrenContainer.style.display = 'none';
+                }
+            });
+        }
+    }
+
+    function renderParentTree(item, container) {
+        container.innerHTML = ''; // Clear previous
+        const isHorizontal = currentView === 'h-tree';
+        const treeContainer = document.createElement('div');
+        treeContainer.className = isHorizontal ? 'h-tree-container' : 'tree-container';
+
+        item.prerequisites.forEach(prereqObj => {
+            const parentItem = getItemById(prereqObj.id);
+            if(parentItem) {
+                const card = createSkillCard(parentItem);
+                // Attach listeners to the new cards to allow recursive exploration
+                const showParentsBtn = card.querySelector('.show-parents-btn');
+                if (showParentsBtn) {
+                    const newParentsContainer = document.createElement('div');
+                    newParentsContainer.className = 'focal-lineage-container';
+                    newParentsContainer.style.display = 'none';
+                    card.before(newParentsContainer); // Show parents above the card
+
+                    showParentsBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isEmpty = newParentsContainer.innerHTML.trim() === '';
+                        showParentsBtn.classList.toggle('active', isEmpty);
+                        if(isEmpty) {
+                            renderParentTree(parentItem, newParentsContainer);
+                            newParentsContainer.style.display = 'flex';
+                        } else {
+                            newParentsContainer.innerHTML = '';
+                            newParentsContainer.style.display = 'none';
+                        }
+                    });
+                }
+                treeContainer.appendChild(card);
+            }
+        });
+        container.appendChild(treeContainer);
+    }
+
+    function renderChildrenTree(item, container) {
+        container.innerHTML = ''; // Clear previous
+        const children = getAllItems().filter(child => child.prerequisites.some(p => p.id === item.id));
+        const isHorizontal = currentView === 'h-tree';
+        const treeContainer = document.createElement('div');
+        treeContainer.className = isHorizontal ? 'h-tree-container' : 'tree-container';
+
+        children.forEach(childItem => {
+             const card = createSkillCard(childItem);
+             // Allow further expansion
+            const showChildrenBtn = card.querySelector('.show-children-btn');
+            if (showChildrenBtn) {
+                const newChildrenContainer = document.createElement('div');
+                newChildrenContainer.className = 'focal-lineage-container';
+                newChildrenContainer.style.display = 'none';
+                card.after(newChildrenContainer);
+
+                showChildrenBtn.addEventListener('click', (e) => {
+                     e.stopPropagation();
+                    const isHidden = newChildrenContainer.style.display === 'none';
+                    if (isHidden) {
+                        renderChildrenTree(childItem, newChildrenContainer);
+                        newChildrenContainer.style.display = 'flex';
+                         showChildrenBtn.classList.add('active');
+                    } else {
+                        newChildrenContainer.innerHTML = '';
+                        newChildrenContainer.style.display = 'none';
+                         showChildrenBtn.classList.remove('active');
+                    }
+                });
+            }
+            treeContainer.appendChild(card);
+        });
+        container.appendChild(treeContainer);
     }
 
 
-function arePrerequisitesMet(item) {
+function areParentsMet(item) {
     if (!item.prerequisites || item.prerequisites.length === 0) {
-        return true; // No prerequisites, always considered met.
+        return true; // No parents, always considered met.
     }
     return item.prerequisites.every(prereqObj => {
-        const prereqItem = getItemById(prereqObj.id);
-        // If a prerequisite item doesn't exist for some reason, fail open (treat as met)
-        if (!prereqItem) return true;
-        // Check if the user's level for the prerequisite item meets or exceeds the required level
-        return (prereqItem.level || 0) >= prereqObj.requiredLevel;
+        const parentItem = getItemById(prereqObj.id);
+        // If a parent item doesn't exist for some reason, fail open (treat as met)
+        if (!parentItem) return true;
+        // Check if the user's level for the parent item meets or exceeds the required level
+        return (parentItem.level || 0) >= prereqObj.requiredLevel;
     });
 }
 
@@ -757,7 +793,7 @@ function renderFormattedText(text) {
         card.dataset.type = item.type;
 
         // --- Discovery Mode Logic ---
-        const isDiscovered = arePrerequisitesMet(item);
+        const isDiscovered = areParentsMet(item);
         if (discoveryModeEnabled && !isDiscovered) {
             card.classList.add('locked');
             const cardTitle = document.createElement('h3');
@@ -788,9 +824,26 @@ function renderFormattedText(text) {
         const cardControls = document.createElement('div');
         cardControls.className = 'card-controls';
 
+        // Add specific controls for tree views
+        if (currentView === 'v-tree' || currentView === 'h-tree') {
+            if (item.prerequisites.length > 0) {
+                const showParentsBtn = document.createElement('button');
+                showParentsBtn.textContent = 'Parents';
+                showParentsBtn.className = 'show-parents-btn';
+                cardControls.appendChild(showParentsBtn);
+            }
+            const children = getAllItems().filter(child => child.prerequisites.some(p => p.id === item.id));
+            if (children.length > 0) {
+                const showChildrenBtn = document.createElement('button');
+                showChildrenBtn.textContent = 'Children';
+                showChildrenBtn.className = 'show-children-btn';
+                cardControls.appendChild(showChildrenBtn);
+            }
+        }
+
         const quickAddBtn = document.createElement('button');
         quickAddBtn.textContent = '+';
-        quickAddBtn.title = 'Create a new item with this as a prerequisite';
+        quickAddBtn.title = 'Create a new child item with this as a parent';
         quickAddBtn.className = 'quick-add-btn';
         quickAddBtn.onclick = () => openModalForQuickAdd(item.id);
 
@@ -816,21 +869,21 @@ function renderFormattedText(text) {
         card.appendChild(cardDescription);
 
         if (item.prerequisites && item.prerequisites.length > 0) {
-            const prereqList = document.createElement('div');
-            prereqList.className = 'prerequisites-list';
-            const prereqTitle = document.createElement('strong');
-            prereqTitle.textContent = 'Prerequisites:';
-            prereqList.appendChild(prereqTitle);
+            const parentList = document.createElement('div');
+            parentList.className = 'parents-list';
+            const parentTitle = document.createElement('strong');
+            parentTitle.textContent = 'Parents:';
+            parentList.appendChild(parentTitle);
 
             const ul = document.createElement('ul');
-        item.prerequisites.forEach(prereqObj => {
-            const prereqItem = getItemById(prereqObj.id);
+            item.prerequisites.forEach(prereqObj => {
+                const parentItem = getItemById(prereqObj.id);
                 const li = document.createElement('li');
-            li.textContent = prereqItem ? `${prereqItem.name} (Lvl ${prereqObj.requiredLevel} Req.)` : 'Unknown';
+                li.textContent = parentItem ? `${parentItem.name} (Lvl ${prereqObj.requiredLevel} Req.)` : 'Unknown';
                 ul.appendChild(li);
             });
-            prereqList.appendChild(ul);
-            card.appendChild(prereqList);
+            parentList.appendChild(ul);
+            card.appendChild(parentList);
         }
 
         // --- Expandable Level Descriptions ---
@@ -965,21 +1018,21 @@ function renderFormattedText(text) {
         }
 
         const allItems = getAllItems();
-        const prerequisites = focalItem.prerequisites.map(p => getItemById(p.id)).filter(Boolean);
-        const dependents = allItems.filter(item => item.prerequisites.some(p => p.id === focalItem.id));
+        const parents = focalItem.prerequisites.map(p => getItemById(p.id)).filter(Boolean);
+        const children = allItems.filter(item => item.prerequisites.some(p => p.id === focalItem.id));
 
-        // --- Render Prerequisites (Parents) ---
-        if (prerequisites.length > 0) {
-            const prereqSection = document.createElement('div');
-            prereqSection.className = 'explorer-section';
-            prereqSection.innerHTML = '<h4 class="explorer-section-title">Prerequisites</h4>';
-            const prereqContainer = document.createElement('div');
-            prereqContainer.className = 'explorer-items-container';
-            prerequisites.forEach(item => {
-                prereqContainer.appendChild(createExplorerCard(item));
+        // --- Render Parents (Prerequisites) ---
+        if (parents.length > 0) {
+            const parentSection = document.createElement('div');
+            parentSection.className = 'explorer-section';
+            parentSection.innerHTML = '<h4 class="explorer-section-title">Parents</h4>';
+            const parentContainer = document.createElement('div');
+            parentContainer.className = 'explorer-items-container';
+            parents.forEach(item => {
+                parentContainer.appendChild(createExplorerCard(item));
             });
-            prereqSection.appendChild(prereqContainer);
-            skillTreeContainer.appendChild(prereqSection);
+            parentSection.appendChild(parentContainer);
+            skillTreeContainer.appendChild(parentSection);
         }
 
         // --- Render Focal Item ---
@@ -989,18 +1042,18 @@ function renderFormattedText(text) {
         skillTreeContainer.appendChild(focalSection);
 
 
-        // --- Render Dependents (Children) ---
-        if (dependents.length > 0) {
-            const dependentSection = document.createElement('div');
-            dependentSection.className = 'explorer-section';
-            dependentSection.innerHTML = '<h4 class="explorer-section-title">Dependents</h4>';
-            const dependentContainer = document.createElement('div');
-            dependentContainer.className = 'explorer-items-container';
-            dependents.forEach(item => {
-                dependentContainer.appendChild(createExplorerCard(item));
+        // --- Render Children (Dependents) ---
+        if (children.length > 0) {
+            const childSection = document.createElement('div');
+            childSection.className = 'explorer-section';
+            childSection.innerHTML = '<h4 class="explorer-section-title">Children</h4>';
+            const childContainer = document.createElement('div');
+            childContainer.className = 'explorer-items-container';
+            children.forEach(item => {
+                childContainer.appendChild(createExplorerCard(item));
             });
-            dependentSection.appendChild(dependentContainer);
-            skillTreeContainer.appendChild(dependentSection);
+            childSection.appendChild(childContainer);
+            skillTreeContainer.appendChild(childSection);
         }
     }
 
@@ -1020,55 +1073,6 @@ function renderFormattedText(text) {
     }
 
 
-    function renderSkillTree() {
-        skillTreeContainer.innerHTML = '';
-        const allItems = getAllItems();
-
-        if (allItems.length === 0) {
-            skillTreeContainer.innerHTML = '<p>No skills or faculties yet. Add one to get started!</p>';
-            return;
-        }
-
-        let tiers = allItems.reduce((acc, item) => {
-            const tier = item.tier;
-            if (!acc[tier]) acc[tier] = [];
-            acc[tier].push(item);
-            return acc;
-        }, {});
-
-        const maxTier = Object.keys(tiers).length > 0 ? Math.max(...Object.keys(tiers).map(Number)) : 0;
-
-        // --- Sorting Logic ---
-        if (currentView === 'tree') {
-            // The new tree view handles its own layout
-        } else { // Alphabetical sort
-             for (let i = 0; i <= maxTier; i++) {
-                if (tiers[i]) {
-                    tiers[i].sort((a,b) => a.name.localeCompare(b.name));
-                }
-            }
-        }
-
-
-        for (let i = 0; i <= maxTier; i++) {
-            if (!tiers[i] || tiers[i].length === 0) continue;
-
-            const tierColumn = document.createElement('div');
-            tierColumn.className = 'tier-column';
-
-            const tierTitle = document.createElement('h2');
-            tierTitle.className = 'tier-title';
-            tierTitle.textContent = `Tier ${i}`;
-            tierColumn.appendChild(tierTitle);
-
-            tiers[i].forEach(item => {
-                const card = createSkillCard(item);
-                tierColumn.appendChild(card);
-            });
-
-            skillTreeContainer.appendChild(tierColumn);
-        }
-    }
 
     // --- Import/Export Logic ---
     function exportData() {
@@ -1141,7 +1145,7 @@ function renderFormattedText(text) {
     function init() {
         loadData();
         setView(currentView); // Set initial view from loaded data
-        renderSearchResults(); // Populate search results on load
+        renderLeftPane(); // Populate search results on load
     }
 
     init();
