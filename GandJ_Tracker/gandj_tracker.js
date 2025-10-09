@@ -6,10 +6,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeBtn = document.querySelector('.close-btn');
     const addEditForm = document.getElementById('add-edit-form');
     const isTierZeroCheckbox = document.getElementById('is-tier-zero');
-    const prerequisitesContainer = document.getElementById('prerequisites-container');
+    const parentsContainer = document.getElementById('parents-container');
     const skillTreeContainer = document.getElementById('skill-tree-container');
-    const prereq1Select = document.getElementById('prerequisite1');
-    const prereq2Select = document.getElementById('prerequisite2');
+    const parent1Select = document.getElementById('parent1');
+    const parent2Select = document.getElementById('parent2');
     const editItemIdInput = document.getElementById('edit-item-id');
     const itemNameInput = document.getElementById('item-name');
     const itemDescriptionInput = document.getElementById('item-description');
@@ -112,10 +112,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         filteredItems.forEach(item => {
-            const resultItem = document.createElement('div');
+            const resultItem = document.createElement('button');
             resultItem.className = 'search-result-item';
             resultItem.dataset.id = item.id;
-            resultItem.dataset.itemType = item.type; // Use dataset for CSS attribute selectors
+            resultItem.dataset.itemType = item.type;
 
             const itemName = document.createElement('span');
             itemName.className = 'item-name';
@@ -194,15 +194,26 @@ document.addEventListener('DOMContentLoaded', () => {
                             item.levelDescriptions = { '1': '', '2': '', '3': '', '4': '', '5': '' };
                             needsSave = true;
                         }
-                        // 2. Migrate prerequisites from string[] to object[]
-                        if (item.prerequisites && item.prerequisites.length > 0 && typeof item.prerequisites[0] === 'string') {
-                            item.prerequisites = item.prerequisites.map(prereqId => ({ id: prereqId, requiredLevel: 1 }));
+                        // 2. Migrate 'prerequisites' property to 'parents'
+                        if (item.prerequisites) {
+                            item.parents = item.prerequisites;
+                            delete item.prerequisites;
+                            needsSave = true;
+                        }
+                        // Ensure parents array exists
+                        if (!item.parents) {
+                            item.parents = [];
+                            needsSave = true;
+                        }
+                        // 3. Migrate parents from string[] to object[] for backward compatibility
+                        if (item.parents && item.parents.length > 0 && typeof item.parents[0] === 'string') {
+                            item.parents = item.parents.map(parentId => ({ id: parentId, requiredLevel: 1 }));
                             needsSave = true;
                         }
                     });
 
                     if (needsSave) {
-                        console.log('Xenophile: Migrated data to new format.');
+                        console.log('G&J Tracker: Migrated data to new format.');
                         saveData();
                     }
                     return;
@@ -221,32 +232,32 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeDefaultData() {
         gameData.skills = [
             // Tier 0
-            { id: 'skill_move_0', name: 'Move', description: 'The ability to change location.', prerequisites: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_think_0', name: 'Think', description: 'The ability to process information and form ideas.', prerequisites: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_talk_0', name: 'Talk', description: 'The ability to communicate with sounds.', prerequisites: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_carry_1', name: 'Carry', description: 'Hold something in your hand.', prerequisites: [{id: 'skill_move_0', requiredLevel: 1}, {id: 'faculty_thumbs_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_move_0', name: 'Move', description: 'The ability to change location.', parents: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_think_0', name: 'Think', description: 'The ability to process information and form ideas.', parents: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_talk_0', name: 'Talk', description: 'The ability to communicate with sounds.', parents: [], tier: 0, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_carry_1', name: 'Carry', description: 'Hold something in your hand.', parents: [{id: 'skill_move_0', requiredLevel: 1}, {id: 'faculty_thumbs_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
 
             // Barrel Roll Tree
-            { id: 'skill_fly_1', name: 'Fly', description: 'Gain altitude and move through the air.', prerequisites: [{id: 'faculty_wings_0', requiredLevel: 1}, {id: 'skill_move_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_barrel_roll_2', name: 'Barrel Roll', description: 'Perform a full lateral roll while in flight.', prerequisites: [{id: 'skill_fly_1', requiredLevel: 2}, {id: 'skill_move_0', requiredLevel: 1}], tier: 2, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_fly_1', name: 'Fly', description: 'Gain altitude and move through the air.', parents: [{id: 'faculty_wings_0', requiredLevel: 1}, {id: 'skill_move_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_barrel_roll_2', name: 'Barrel Roll', description: 'Perform a full lateral roll while in flight.', parents: [{id: 'skill_fly_1', requiredLevel: 2}, {id: 'skill_move_0', requiredLevel: 1}], tier: 2, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
 
             // Oral Dissertation Tree
-            { id: 'skill_formulate_argument_1', name: 'Formulate Argument', description: 'Create a structured and logical line of reasoning.', prerequisites: [{id: 'skill_think_0', requiredLevel: 1}, {id: 'skill_talk_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_structure_narrative_2', name: 'Structure Narrative', description: 'Organize arguments into a compelling story.', prerequisites: [{id: 'skill_formulate_argument_1', requiredLevel: 2}, {id: 'skill_think_0', requiredLevel: 2}], tier: 2, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_public_speaking_3', name: 'Public Speaking', description: 'Clearly articulate a narrative to an audience.', prerequisites: [{id: 'skill_structure_narrative_2', requiredLevel: 3}, {id: 'skill_talk_0', requiredLevel: 2}], tier: 3, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_defend_thesis_4', name: 'Defend Thesis', description: 'Respond to challenges and questions about your arguments.', prerequisites: [{id: 'skill_public_speaking_3', requiredLevel: 3}, {id: 'skill_formulate_argument_1', requiredLevel: 3}], tier: 4, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'skill_oral_dissertation_5', name: 'Oral Dissertation', description: 'Deliver a comprehensive academic presentation to a panel of experts.', prerequisites: [{id: 'skill_defend_thesis_4', requiredLevel: 4}, {id: 'skill_public_speaking_3', requiredLevel: 4}], tier: 5, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_formulate_argument_1', name: 'Formulate Argument', description: 'Create a structured and logical line of reasoning.', parents: [{id: 'skill_think_0', requiredLevel: 1}, {id: 'skill_talk_0', requiredLevel: 1}], tier: 1, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_structure_narrative_2', name: 'Structure Narrative', description: 'Organize arguments into a compelling story.', parents: [{id: 'skill_formulate_argument_1', requiredLevel: 2}, {id: 'skill_think_0', requiredLevel: 2}], tier: 2, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_public_speaking_3', name: 'Public Speaking', description: 'Clearly articulate a narrative to an audience.', parents: [{id: 'skill_structure_narrative_2', requiredLevel: 3}, {id: 'skill_talk_0', requiredLevel: 2}], tier: 3, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_defend_thesis_4', name: 'Defend Thesis', description: 'Respond to challenges and questions about your arguments.', parents: [{id: 'skill_public_speaking_3', requiredLevel: 3}, {id: 'skill_formulate_argument_1', requiredLevel: 3}], tier: 4, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'skill_oral_dissertation_5', name: 'Oral Dissertation', description: 'Deliver a comprehensive academic presentation to a panel of experts.', parents: [{id: 'skill_defend_thesis_4', requiredLevel: 4}, {id: 'skill_public_speaking_3', requiredLevel: 4}], tier: 5, type: 'skill', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
         ];
         gameData.faculties = [
             // Tier 0
-            { id: 'faculty_wings_0', name: 'Wings', description: 'Appendages that allow for flight.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'faculty_gills_0', name: 'Gills', description: 'Organs that allow for breathing underwater.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'faculty_thumbs_0', name: 'Opposable Thumbs', description: 'Thumbs that can be moved to touch the other fingers, allowing for grasping.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'faculty_wings_0', name: 'Wings', description: 'Appendages that allow for flight.', parents: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'faculty_gills_0', name: 'Gills', description: 'Organs that allow for breathing underwater.', parents: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'faculty_thumbs_0', name: 'Opposable Thumbs', description: 'Thumbs that can be moved to touch the other fingers, allowing for grasping.', parents: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
         ];
         gameData.factors = [
             // Tier 0
-            { id: 'factor_dexterity_0', name: 'Manual Dexterity', description: 'The ability to make coordinated hand and finger movements to grasp and manipulate objects.', prerequisites: [], tier: 0, type: 'factor', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
-            { id: 'factor_endurance_0', name: 'Physical Endurance', description: 'The ability of an organism to exert itself and remain active for a long period of time.', prerequisites: [], tier: 0, type: 'factor', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'factor_dexterity_0', name: 'Manual Dexterity', description: 'The ability to make coordinated hand and finger movements to grasp and manipulate objects.', parents: [], tier: 0, type: 'factor', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'factor_endurance_0', name: 'Physical Endurance', description: 'The ability of an organism to exert itself and remain active for a long period of time.', parents: [], tier: 0, type: 'factor', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
         ];
         // We need to ensure all tiers are correct after initializing
         updateAllDependentTiers();
@@ -260,24 +271,24 @@ document.addEventListener('DOMContentLoaded', () => {
         return getAllItems().find(item => item.id === id);
     }
 
-    function populatePrerequisiteDropdowns(currentItemId = null) {
-        const allPrereqs = getAllItems().sort((a, b) => a.name.localeCompare(b.name));
+    function populateParentDropdowns(currentItemId = null) {
+        const allPotentialParents = getAllItems().sort((a, b) => a.name.localeCompare(b.name));
 
-        prereq1Select.innerHTML = '<option value="">None</option>';
-        prereq2Select.innerHTML = '<option value="">None</option>';
+        parent1Select.innerHTML = '<option value="">None</option>';
+        parent2Select.innerHTML = '<option value="">None</option>';
 
-        allPrereqs.forEach(item => {
+        allPotentialParents.forEach(item => {
             if (item.id === currentItemId) return;
 
             const option1 = document.createElement('option');
             option1.value = item.id;
             option1.textContent = `${item.name} (T${item.tier}) [${item.type}]`;
-            prereq1Select.appendChild(option1);
+            parent1Select.appendChild(option1);
 
             const option2 = document.createElement('option');
             option2.value = item.id;
             option2.textContent = `${item.name} (T${item.tier}) [${item.type}]`;
-            prereq2Select.appendChild(option2);
+            parent2Select.appendChild(option2);
         });
     }
 
@@ -288,12 +299,12 @@ document.addEventListener('DOMContentLoaded', () => {
             changed = false;
             allItems.forEach(item => {
                 let newTier;
-                if(item.prerequisites.length > 0) {
-                    const prereqTiers = item.prerequisites.map(prereqObj => {
-                        const prereq = getItemById(prereqObj.id);
-                        return prereq ? prereq.tier : -1;
+                if(item.parents.length > 0) {
+                    const parentTiers = item.parents.map(parentObj => {
+                        const parent = getItemById(parentObj.id);
+                        return parent ? parent.tier : -1;
                     });
-                    newTier = Math.max(...prereqTiers) + 1;
+                    newTier = Math.max(...parentTiers) + 1;
                 } else {
                     newTier = 0;
                 }
@@ -349,13 +360,13 @@ document.addEventListener('DOMContentLoaded', () => {
         modalTitle.textContent = 'Create New Item';
         addEditForm.reset();
         editItemIdInput.value = '';
-        prerequisitesContainer.style.display = 'block';
+        parentsContainer.style.display = 'block';
         isTierZeroCheckbox.checked = false;
         itemTypeSelect.disabled = false;
-        populatePrerequisiteDropdowns();
+        populateParentDropdowns();
         setupLevelDescriptionTabs(null); // Setup for a new item
-        document.getElementById('prereq1-level').value = 1;
-        document.getElementById('prereq2-level').value = 1;
+        document.getElementById('parent1-level').value = 1;
+        document.getElementById('parent2-level').value = 1;
         modal.style.display = 'block';
     }
 
@@ -366,9 +377,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Pre-select the parent
         const parentItem = getItemById(parentId);
         if(parentItem) {
-            prereq1Select.value = parentId;
+            parent1Select.value = parentId;
             isTierZeroCheckbox.checked = false;
-            prerequisitesContainer.style.display = 'block';
+            parentsContainer.style.display = 'block';
         }
     }
 
@@ -385,21 +396,21 @@ document.addEventListener('DOMContentLoaded', () => {
         itemTypeSelect.value = item.type;
         itemTypeSelect.disabled = false; // Allow changing the type
 
-        populatePrerequisiteDropdowns(itemId);
+        populateParentDropdowns(itemId);
         setupLevelDescriptionTabs(item); // Populate with existing data
 
-        if (item.tier === 0 || item.prerequisites.length === 0) {
+        if (item.tier === 0 || item.parents.length === 0) {
             isTierZeroCheckbox.checked = true;
-            prerequisitesContainer.style.display = 'none';
+            parentsContainer.style.display = 'none';
         } else {
             isTierZeroCheckbox.checked = false;
-            prerequisitesContainer.style.display = 'block';
-            const prereq1 = item.prerequisites[0];
-            const prereq2 = item.prerequisites[1];
-            prereq1Select.value = prereq1 ? prereq1.id : '';
-            document.getElementById('prereq1-level').value = prereq1 ? prereq1.requiredLevel : 1;
-            prereq2Select.value = prereq2 ? prereq2.id : '';
-            document.getElementById('prereq2-level').value = prereq2 ? prereq2.requiredLevel : 1;
+            parentsContainer.style.display = 'block';
+            const parent1 = item.parents[0];
+            const parent2 = item.parents[1];
+            parent1Select.value = parent1 ? parent1.id : '';
+            document.getElementById('parent1-level').value = parent1 ? parent1.requiredLevel : 1;
+            parent2Select.value = parent2 ? parent2.id : '';
+            document.getElementById('parent2-level').value = parent2 ? parent2.requiredLevel : 1;
         }
 
         modal.style.display = 'block';
@@ -419,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Form Logic ---
     isTierZeroCheckbox.addEventListener('change', () => {
-        prerequisitesContainer.style.display = isTierZeroCheckbox.checked ? 'none' : 'block';
+        parentsContainer.style.display = isTierZeroCheckbox.checked ? 'none' : 'block';
     });
 
     addEditForm.addEventListener('submit', (event) => {
@@ -436,21 +447,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let prerequisites = [];
+        let parents = [];
         if (!isTierZero) {
-            const parent1Id = prereq1Select.value;
-            const parent2Id = prereq2Select.value;
-            const parent1Level = parseInt(document.getElementById('prereq1-level').value) || 1;
-            const parent2Level = parseInt(document.getElementById('prereq2-level').value) || 1;
+            const parent1Id = parent1Select.value;
+            const parent2Id = parent2Select.value;
+            const parent1Level = parseInt(document.getElementById('parent1-level').value) || 1;
+            const parent2Level = parseInt(document.getElementById('parent2-level').value) || 1;
 
 
              if (parent1Id === id || parent2Id === id) {
                 alert('An item cannot be its own parent.');
                 return;
             }
-            // Only add unique, non-empty prerequisites/parents
-            if(parent1Id) prerequisites.push({ id: parent1Id, requiredLevel: parent1Level });
-            if(parent2Id && parent1Id !== parent2Id) prerequisites.push({ id: parent2Id, requiredLevel: parent2Level });
+            // Only add unique, non-empty parents
+            if(parent1Id) parents.push({ id: parent1Id, requiredLevel: parent1Level });
+            if(parent2Id && parent1Id !== parent2Id) parents.push({ id: parent2Id, requiredLevel: parent2Level });
 
         }
 
@@ -469,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update properties
             itemToUpdate.name = name;
             itemToUpdate.description = description;
-            itemToUpdate.prerequisites = prerequisites;
+            itemToUpdate.parents = parents;
             itemToUpdate.levelDescriptions = levelDescriptions;
             itemToUpdate.type = newType;
 
@@ -489,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: `${type}_${name.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`,
                 name,
                 description,
-                prerequisites,
+                parents,
                 tier: 0, // Tier will be calculated by updateAllDependentTiers
                 type,
                 level: 0,
@@ -507,8 +518,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Deletion Logic ---
     function deleteItem(itemId) {
         const allItems = getAllItems();
-        // An item is a "parent" if any other item lists it as a prerequisite.
-        const isParent = allItems.some(item => item.prerequisites.some(p => p.id === itemId));
+        // An item is a "parent" if any other item lists it as a parent.
+        const isParent = allItems.some(item => item.parents.some(p => p.id === itemId));
 
         if (isParent) {
             alert('Cannot delete this item as it is a parent to another item. Please remove the child dependency first.');
@@ -679,8 +690,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const treeContainer = document.createElement('div');
         treeContainer.className = isHorizontal ? 'h-tree-container' : 'tree-container';
 
-        item.prerequisites.forEach(prereqObj => {
-            const parentItem = getItemById(prereqObj.id);
+        item.parents.forEach(parentObj => {
+            const parentItem = getItemById(parentObj.id);
             if(parentItem) {
                 const card = createSkillCard(parentItem);
                 // Attach listeners to the new cards to allow recursive exploration
@@ -712,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderChildrenTree(item, container) {
         container.innerHTML = ''; // Clear previous
-        const children = getAllItems().filter(child => child.prerequisites.some(p => p.id === item.id));
+        const children = getAllItems().filter(child => child.parents.some(p => p.id === item.id));
         const isHorizontal = currentView === 'h-tree';
         const treeContainer = document.createElement('div');
         treeContainer.className = isHorizontal ? 'h-tree-container' : 'tree-container';
@@ -748,15 +759,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 function areParentsMet(item) {
-    if (!item.prerequisites || item.prerequisites.length === 0) {
+    if (!item.parents || item.parents.length === 0) {
         return true; // No parents, always considered met.
     }
-    return item.prerequisites.every(prereqObj => {
-        const parentItem = getItemById(prereqObj.id);
+    return item.parents.every(parentObj => {
+        const parentItem = getItemById(parentObj.id);
         // If a parent item doesn't exist for some reason, fail open (treat as met)
         if (!parentItem) return true;
         // Check if the user's level for the parent item meets or exceeds the required level
-        return (parentItem.level || 0) >= prereqObj.requiredLevel;
+        return (parentItem.level || 0) >= parentObj.requiredLevel;
     });
 }
 
@@ -826,13 +837,13 @@ function renderFormattedText(text) {
 
         // Add specific controls for tree views
         if (currentView === 'v-tree' || currentView === 'h-tree') {
-            if (item.prerequisites.length > 0) {
+            if (item.parents.length > 0) {
                 const showParentsBtn = document.createElement('button');
                 showParentsBtn.textContent = 'Parents';
                 showParentsBtn.className = 'show-parents-btn';
                 cardControls.appendChild(showParentsBtn);
             }
-            const children = getAllItems().filter(child => child.prerequisites.some(p => p.id === item.id));
+            const children = getAllItems().filter(child => child.parents.some(p => p.id === item.id));
             if (children.length > 0) {
                 const showChildrenBtn = document.createElement('button');
                 showChildrenBtn.textContent = 'Children';
@@ -868,7 +879,7 @@ function renderFormattedText(text) {
     card.appendChild(titleContainer);
         card.appendChild(cardDescription);
 
-        if (item.prerequisites && item.prerequisites.length > 0) {
+        if (item.parents && item.parents.length > 0) {
             const parentList = document.createElement('div');
             parentList.className = 'parents-list';
             const parentTitle = document.createElement('strong');
@@ -876,10 +887,10 @@ function renderFormattedText(text) {
             parentList.appendChild(parentTitle);
 
             const ul = document.createElement('ul');
-            item.prerequisites.forEach(prereqObj => {
-                const parentItem = getItemById(prereqObj.id);
+            item.parents.forEach(parentObj => {
+                const parentItem = getItemById(parentObj.id);
                 const li = document.createElement('li');
-                li.textContent = parentItem ? `${parentItem.name} (Lvl ${prereqObj.requiredLevel} Req.)` : 'Unknown';
+                li.textContent = parentItem ? `${parentItem.name} (Lvl ${parentObj.requiredLevel} Req.)` : 'Unknown';
                 ul.appendChild(li);
             });
             parentList.appendChild(ul);
@@ -1018,10 +1029,10 @@ function renderFormattedText(text) {
         }
 
         const allItems = getAllItems();
-        const parents = focalItem.prerequisites.map(p => getItemById(p.id)).filter(Boolean);
-        const children = allItems.filter(item => item.prerequisites.some(p => p.id === focalItem.id));
+        const parents = focalItem.parents.map(p => getItemById(p.id)).filter(Boolean);
+        const children = allItems.filter(item => item.parents.some(p => p.id === focalItem.id));
 
-        // --- Render Parents (Prerequisites) ---
+        // --- Render Parents ---
         if (parents.length > 0) {
             const parentSection = document.createElement('div');
             parentSection.className = 'explorer-section';
@@ -1104,12 +1115,17 @@ function renderFormattedText(text) {
                     if (importedData && importedData.skills !== undefined && importedData.faculties !== undefined) {
                         gameData = importedData;
                         // Run migration logic on imported data just in case it's an old format
-                        const allItems = [...gameData.skills, ...gameData.faculties];
+                        const allItems = [...gameData.skills, ...gameData.faculties, ...(gameData.factors || [])];
                         allItems.forEach(item => {
                             if (item.level === undefined) item.level = 0;
                             if (item.levelDescriptions === undefined) item.levelDescriptions = { '1': '', '2': '', '3': '', '4': '', '5': '' };
-                            if (item.prerequisites && item.prerequisites.length > 0 && typeof item.prerequisites[0] === 'string') {
-                                item.prerequisites = item.prerequisites.map(prereqId => ({ id: prereqId, requiredLevel: 1 }));
+                            if (item.prerequisites) {
+                                item.parents = item.prerequisites;
+                                delete item.prerequisites;
+                            }
+                             if (!item.parents) item.parents = [];
+                            if (item.parents && item.parents.length > 0 && typeof item.parents[0] === 'string') {
+                                item.parents = item.parents.map(parentId => ({ id: parentId, requiredLevel: 1 }));
                             }
                         });
                         updateAllDependentTiers();
@@ -1138,6 +1154,34 @@ function renderFormattedText(text) {
         discoveryModeEnabled = discoveryModeToggle.checked;
         saveData();
         setView(currentView); // Re-render the view with the new mode
+    });
+
+
+    // --- Tab Navigation ---
+    const dbTab = document.getElementById('db-tab');
+    const ccTab = document.getElementById('cc-tab');
+    const dbContent = document.getElementById('app-container');
+    const ccContent = document.getElementById('character-creator-container');
+
+    function switchTab(activeTab, activeContent) {
+        // Deactivate all tabs and hide all content
+        document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+            content.style.display = 'none';
+        });
+
+        // Activate the selected tab and content
+        activeTab.classList.add('active');
+        activeContent.classList.add('active');
+        activeContent.style.display = 'flex'; // Use flex for the main container
+    }
+
+    dbTab.addEventListener('click', () => switchTab(dbTab, dbContent));
+    ccTab.addEventListener('click', () => {
+        // Special handling for the placeholder CC content
+        switchTab(ccTab, ccContent);
+        ccContent.style.display = 'block'; // It doesn't need to be flex
     });
 
 
