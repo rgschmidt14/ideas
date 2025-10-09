@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameData = {
         skills: [],
         faculties: [],
+        factors: [],
     };
     let currentView = 'alpha'; // 'alpha', 'v-tree', 'h-tree', or 'explorer'
     let discoveryModeEnabled = false;
@@ -133,9 +134,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const parsedData = JSON.parse(savedData);
                 if (parsedData.skills || parsedData.faculties) {
                     gameData = parsedData;
-                    // --- Data Migration Logic ---
+                     // --- Data Migration Logic ---
                     let needsSave = false;
-                    const allItems = [...gameData.skills, ...gameData.faculties];
+                    // Add factors array if it doesn't exist
+                    if (!gameData.factors) {
+                        gameData.factors = [];
+                        needsSave = true;
+                    }
+
+                    const allItems = [...gameData.skills, ...gameData.faculties, ...gameData.factors];
                     allItems.forEach(item => {
                         // 1. Add level and levelDescriptions if they don't exist
                         if (item.level === undefined) {
@@ -195,12 +202,17 @@ document.addEventListener('DOMContentLoaded', () => {
             { id: 'faculty_gills_0', name: 'Gills', description: 'Organs that allow for breathing underwater.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
             { id: 'faculty_thumbs_0', name: 'Opposable Thumbs', description: 'Thumbs that can be moved to touch the other fingers, allowing for grasping.', prerequisites: [], tier: 0, type: 'faculty', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
         ];
+        gameData.factors = [
+            // Tier 0
+            { id: 'factor_dexterity_0', name: 'Manual Dexterity', description: 'The ability to make coordinated hand and finger movements to grasp and manipulate objects.', prerequisites: [], tier: 0, type: 'factor', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+            { id: 'factor_endurance_0', name: 'Physical Endurance', description: 'The ability of an organism to exert itself and remain active for a long period of time.', prerequisites: [], tier: 0, type: 'factor', level: 0, levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' } },
+        ];
         // We need to ensure all tiers are correct after initializing
         updateAllDependentTiers();
     }
 
     function getAllItems() {
-        return [...gameData.skills, ...gameData.faculties];
+        return [...gameData.skills, ...gameData.faculties, ...gameData.factors];
     }
 
     function getItemById(id) {
@@ -330,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         itemNameInput.value = item.name;
         itemDescriptionInput.value = item.description;
         itemTypeSelect.value = item.type;
-        itemTypeSelect.disabled = true;
+        itemTypeSelect.disabled = false; // Allow changing the type
 
         populatePrerequisiteDropdowns(itemId);
         setupLevelDescriptionTabs(item); // Populate with existing data
@@ -407,16 +419,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (id) { // --- Editing Existing Item ---
-            const itemToUpdate = type === 'skill'
-                ? gameData.skills.find(i => i.id === id)
-                : gameData.faculties.find(i => i.id === id);
+            let itemToUpdate = getItemById(id);
+            if (!itemToUpdate) return;
 
-            if (itemToUpdate) {
-                itemToUpdate.name = name;
-                itemToUpdate.description = description;
-                itemToUpdate.prerequisites = prerequisites;
-                itemToUpdate.levelDescriptions = levelDescriptions;
+            const oldType = itemToUpdate.type;
+            const newType = type;
+
+            // Update properties
+            itemToUpdate.name = name;
+            itemToUpdate.description = description;
+            itemToUpdate.prerequisites = prerequisites;
+            itemToUpdate.levelDescriptions = levelDescriptions;
+            itemToUpdate.type = newType;
+
+            // If the type has changed, move the item to the correct array
+            if (oldType !== newType) {
+                // Remove from the old array
+                const oldArrayName = `${oldType}s`;
+                gameData[oldArrayName] = gameData[oldArrayName].filter(item => item.id !== id);
+
+                // Add to the new array
+                const newArrayName = `${newType}s`;
+                gameData[newArrayName].push(itemToUpdate);
             }
+
         } else { // --- Creating New Item ---
             const newItem = {
                 id: `${type}_${name.replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`,
@@ -426,9 +452,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 tier: 0, // Tier will be calculated by updateAllDependentTiers
                 type,
                 level: 0,
-                levelDescriptions: { '1': '', '2': '', '3': '', '4': '', '5': '' }
+                levelDescriptions
             };
-            gameData[type === 'skill' ? 'skills' : 'faculties'].push(newItem);
+            gameData[`${type}s`].push(newItem);
         }
 
         updateAllDependentTiers();
@@ -451,10 +477,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const itemToDelete = getItemById(itemId);
         if (!itemToDelete) return;
 
-        if (itemToDelete.type === 'skill') {
-            gameData.skills = gameData.skills.filter(item => item.id !== itemId);
-        } else {
-            gameData.faculties = gameData.faculties.filter(item => item.id !== itemId);
+        const typeArrayName = `${itemToDelete.type}s`;
+        if (gameData[typeArrayName]) {
+            gameData[typeArrayName] = gameData[typeArrayName].filter(item => item.id !== itemId);
         }
 
         updateAllDependentTiers();
@@ -712,6 +737,19 @@ function changeItemLevel(itemId, delta) {
     setView(currentView); // Re-render to show updated level description and state
 }
 
+function renderFormattedText(text) {
+    if (!text) return '';
+
+    // Custom parsing for [factor:...] tags
+    const factorTagRegex = /\[factor:([^\]]+)\]/g;
+    let processedText = text.replace(factorTagRegex, '<span class="factor-tag">$1</span>');
+
+    // Convert Markdown to HTML using the 'marked' library
+    // It will handle checkboxes, bold, italics, links, etc.
+    // GFM task lists ` - [ ] ` and ` - [x] ` are rendered as disabled checkboxes.
+    return marked.parse(processedText, { gfm: true, breaks: true });
+}
+
     function createSkillCard(item) {
         const card = document.createElement('div');
         card.className = 'skill-card';
@@ -737,21 +775,14 @@ function changeItemLevel(itemId, delta) {
 
     // --- New Type and Tier Display ---
     const cardTierDisplay = document.createElement('div');
-    cardTierDisplay.className = 'card-tier-display';
-    const typeCapitalized = item.type.charAt(0).toUpperCase() + item.type.slice(1);
-    cardTierDisplay.textContent = `${typeCapitalized} (${item.tier})`;
+    cardTierDisplay.className = `card-tier-display tier-${item.type}`;
+    cardTierDisplay.textContent = `T${item.tier}`;
 
     titleContainer.appendChild(cardTitle);
     titleContainer.appendChild(cardTierDisplay);
 
-        const cardDescription = document.createElement('p');
-    const descriptionText = item.level > 0 && item.levelDescriptions[item.level]
-        ? `<strong>Lvl ${item.level} Desc:</strong> ${item.levelDescriptions[item.level]}`
-        : item.description;
-
-    // Simple URL finder and replacer
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    cardDescription.innerHTML = descriptionText.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+    const cardDescription = document.createElement('div'); // Use a div to host the rendered markdown
+    cardDescription.innerHTML = renderFormattedText(item.description);
 
 
         const cardControls = document.createElement('div');
@@ -812,7 +843,7 @@ function changeItemLevel(itemId, delta) {
         for (let i = 1; i <= 5; i++) {
             const li = document.createElement('li');
             const desc = item.levelDescriptions[i];
-            li.innerHTML = `<strong>Lvl ${i}:</strong> ${desc ? desc.replace(urlRegex, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>') : '<em>No description.</em>'}`;
+            li.innerHTML = `<strong>Lvl ${i}:</strong> ${desc ? renderFormattedText(desc) : '<em>No description.</em>'}`;
             levelList.appendChild(li);
         }
         detailsContainer.appendChild(levelList);

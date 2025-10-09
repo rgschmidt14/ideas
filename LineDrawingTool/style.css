@@ -102,10 +102,39 @@ h2 {
 }
 
 /* Controls and Settings */
-.controls-container, .settings-container {
+.controls-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 10px;
+}
+
+.settings-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Two equal columns */
+    gap: 15px; /* Increased gap for better spacing */
+    align-items: center; /* Vertically align items in the center */
+}
+
+.setting-item {
+    display: contents; /* Allows the children to be direct grid items */
+}
+
+/* Make labels and inputs take up one grid cell each by default */
+.settings-container > .setting-item > label {
+    grid-column: 1 / 2;
+    text-align: right;
+    padding-right: 10px;
+}
+
+.settings-container > .setting-item > input,
+.settings-container > .setting-item > select {
+    grid-column: 2 / 3;
+}
+
+/* Specific items that should span both columns */
+.settings-container > h2,
+.settings-container > #auto-select-best-fit {
+    grid-column: 1 / -1; /* Span all columns */
 }
 
 label {
