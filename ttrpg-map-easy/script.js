@@ -25,6 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tokensInLibrary: [],
         tokensOnMap: [],
         selectedTokenInstanceId: null,
+        draggingTokenInstanceId: null,
+        dragOffset: { u: 0, v: 0 },
     };
     let nextTokenInstanceId = 0;
 
@@ -80,8 +82,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const drawTokens = () => {
-        state.tokensOnMap.sort((a, b) => a.v - b.v).forEach(token => {
-            if (!token.img) return;
+        state.tokensOnMap.sort((a, b) => a.v - b.v);
+
+        for (const token of state.tokensOnMap) {
+            if (!token.img) continue;
 
             const logicalWidth = token.width / state.mapWidth;
             const logicalLength = token.length / state.mapLength;
@@ -109,26 +113,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
 
                 // 2. Draw token image
-                const bottomCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v + logicalLength);
-                const topCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v);
+                const pBottomCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v + logicalLength);
+                const pTopCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v);
 
-                const perspectiveHeight = bottomCenter.y - topCenter.y;
-                const scale = (perspectiveHeight / token.length) / (canvas.height / state.mapLength);
+                const perspectiveHeight = pBottomCenter.y - pTopCenter.y;
+                const scaleFactor = perspectiveHeight / logicalLength / canvas.height;
 
-                const imgHeight = token.img.height * scale * token.height;
-                const imgWidth = token.img.width * scale * token.width;
+                const imgHeight = (token.height / state.mapLength) * canvas.height * scaleFactor;
+                const imgWidth = (imgHeight / token.img.height) * token.img.width;
 
-                const verticalOffset = altitude * scale * 10; // 10 is an arbitrary multiplier for altitude effect
+                const altitudeOffset = (token.altitude / state.mapLength) * canvas.height * scaleFactor;
 
                 ctx.drawImage(
                     token.img,
-                    bottomCenter.x - imgWidth / 2,
-                    bottomCenter.y - imgHeight - verticalOffset,
+                    pBottomCenter.x - imgWidth / 2,
+                    pBottomCenter.y - imgHeight - altitudeOffset,
                     imgWidth,
                     imgHeight
                 );
             }
-        });
+        }
     };
 
     const drawSelectionOutline = () => {
@@ -240,33 +244,56 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.addEventListener('mouseup', () => {
-        state.draggingHandle = null;
-        mapContainer.style.cursor = 'default';
+    document.addEventListener('mousemove', (e) => {
+        if (state.draggingHandle) {
+            const rect = mapContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Clamp coordinates to stay within canvas bounds
+            const clampedX = Math.max(0, Math.min(x, rect.width));
+            const clampedY = Math.max(0, Math.min(y, rect.height));
+
+            if (state.draggingHandle.id === 'handle-tl') {
+                state.handleTLPos.x = clampedX;
+                state.handleTLPos.y = clampedY;
+            } else {
+                state.handleTRPos.x = clampedX;
+                state.handleTRPos.y = clampedY;
+            }
+
+            checkViewMode();
+            updateHandles();
+            drawGrid();
+        } else if (state.draggingTokenInstanceId) {
+            const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
+            if (!token) return;
+
+            const rect = mapContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const { u, v } = canvasToGridCoords(x, y);
+            token.u = u - state.dragOffset.u;
+            token.v = v - state.dragOffset.v;
+
+            render();
+        }
     });
 
-    document.addEventListener('mousemove', (e) => {
-        if (!state.draggingHandle) return;
-
-        const rect = mapContainer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        // Clamp coordinates to stay within canvas bounds
-        const clampedX = Math.max(0, Math.min(x, rect.width));
-        const clampedY = Math.max(0, Math.min(y, rect.height));
-
-        if (state.draggingHandle.id === 'handle-tl') {
-            state.handleTLPos.x = clampedX;
-            state.handleTLPos.y = clampedY;
-        } else {
-            state.handleTRPos.x = clampedX;
-            state.handleTRPos.y = clampedY;
+    document.addEventListener('mouseup', () => {
+        if (state.draggingHandle) {
+            state.draggingHandle = null;
+            mapContainer.style.cursor = 'default';
+        } else if (state.draggingTokenInstanceId) {
+            const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
+            if (token) {
+                snapTokenToGrid(token);
+            }
+            state.draggingTokenInstanceId = null;
+            mapContainer.style.cursor = 'default';
+            render();
         }
-
-        checkViewMode();
-        updateHandles();
-        drawGrid();
     });
 
     bgImageInput.addEventListener('change', (event) => {
@@ -413,15 +440,21 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- Event Listeners ---
-    canvas.addEventListener('click', (e) => {
+    const snapTokenToGrid = (token) => {
+        const snappedU = Math.round(token.u * state.mapWidth) / state.mapWidth;
+        const snappedV = Math.round(token.v * state.mapLength) / state.mapLength;
+        token.u = snappedU;
+        token.v = snappedV;
+    };
+
+    canvas.addEventListener('mousedown', (e) => {
         const rect = mapContainer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const { u, v } = canvasToGridCoords(x, y);
 
-        // Find the topmost token at the clicked location
         const clickedToken = [...state.tokensOnMap]
-            .reverse() // search from top-most rendered token
+            .reverse()
             .find(token => {
                 const logicalWidth = token.width / state.mapWidth;
                 const logicalLength = token.length / state.mapLength;
@@ -429,7 +462,17 @@ document.addEventListener('DOMContentLoaded', () => {
                        v >= token.v && v <= token.v + logicalLength;
             });
 
-        state.selectedTokenInstanceId = clickedToken ? clickedToken.instanceId : null;
+        if (clickedToken) {
+            state.draggingTokenInstanceId = clickedToken.instanceId;
+            state.selectedTokenInstanceId = clickedToken.instanceId;
+            state.dragOffset = {
+                u: u - clickedToken.u,
+                v: v - clickedToken.v
+            };
+            mapContainer.style.cursor = 'grabbing';
+        } else {
+            state.selectedTokenInstanceId = null;
+        }
         updateSelectedTokenUI();
         render();
     });
