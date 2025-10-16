@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTRPG Map Easy</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-container">
+        <h1>TTRPG Map Easy</h1>
+
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="controls session-controls">
+                    <h3>Sessions</h3>
+                    <select id="session-select"></select>
+                    <div class="session-buttons">
+                        <button id="load-session-btn">Load</button>
+                        <button id="delete-session-btn">Delete</button>
+                    </div>
+                    <hr>
+                    <input type="text" id="session-name-input" placeholder="New Session Name">
+                    <button id="save-session-btn">Save</button>
+                    <button id="new-session-btn">New</button>
+                </div>
+                <div class="controls">
+                    <h3>1. Load Background Image</h3>
+                    <input type="file" id="bg-image-input" accept="image/*">
+                </div>
+                 <div class="controls">
+                    <h3>2. Define Map Dimensions</h3>
+                    <label for="map-width">Width:</label>
+                    <input type="number" id="map-width" value="30">
+                    <label for="map-length">Length:</label>
+                    <input type="number" id="map-length" value="20">
+                    <select id="map-units">
+                        <option value="ft">ft</option>
+                        <option value="yd">yd</option>
+                        <option value="m">m</option>
+                    </select>
+                </div>
+                 <div class="controls" id="token-controls">
+                    <h3>3. Manage Tokens</h3>
+                    <div>
+                        <label for="token-image-input">Token Image:</label>
+                        <input type="file" id="token-image-input" accept="image/*">
+                    </div>
+                    <div class="token-dims">
+                        <label>Size (W, L, H):</label>
+                        <input type="number" id="token-width" value="1" min="1">
+                        <input type="number" id="token-length" value="1" min="1">
+                        <input type="number" id="token-height" value="1" min="0">
+                        <span id="token-units">ft</span>
+                    </div>
+                    <button id="add-token-btn">Add Token to Library</button>
+                </div>
+                 <div id="selected-token-controls" class="controls" style="display: none;">
+                    <h4>Selected Token</h4>
+                    <label for="token-altitude">Altitude:</label>
+                    <input type="range" id="token-altitude" min="0" max="100" value="0">
+                    <span id="altitude-value">0</span>
+                </div>
+            </div>
+            <div class="right-panel">
+                <div id="map-container">
+            <canvas id="grid-canvas"></canvas>
+            <div class="handle" id="handle-tl"></div>
+            <div class="handle" id="handle-tr"></div>
+        </div>
+                <div id="token-library">
+                    <h4>Token Library (Drag to Map)</h4>
+                    <!-- Tokens will be added here by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
