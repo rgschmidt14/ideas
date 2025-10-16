@@ -13,6 +13,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const mapUnitsSelect = document.getElementById('map-units');
     const handleTL = document.getElementById('handle-tl');
     const handleTR = document.getElementById('handle-tr');
+    const tokenImageInput = document.getElementById('token-image-input');
+    const tokenWidthInput = document.getElementById('token-width');
+    const tokenLengthInput = document.getElementById('token-length');
+    const tokenHeightInput = document.getElementById('token-height');
+    const addTokenBtn = document.getElementById('add-token-btn');
+    const tokenLibrary = document.getElementById('token-library');
+    const tokenUnitsSpan = document.getElementById('token-units');
+    const selectedTokenControls = document.getElementById('selected-token-controls');
+    const tokenAltitudeSlider = document.getElementById('token-altitude');
+    const altitudeValueSpan = document.getElementById('altitude-value');
+    const onMapTokenList = document.getElementById('on-map-token-list');
+    const sessionSelect = document.getElementById('session-select');
+    const sessionNameInput = document.getElementById('session-name-input');
+    const saveSessionBtn = document.getElementById('save-session-btn');
+    const loadSessionBtn = document.getElementById('load-session-btn');
+    const deleteSessionBtn = document.getElementById('delete-session-btn');
+    const newSessionBtn = document.getElementById('new-session-btn');
 
     // --- Application State ---
     const state = {
@@ -27,8 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedTokenInstanceId: null,
         draggingTokenInstanceId: null,
         dragOffset: { u: 0, v: 0 },
+        nextTokenInstanceId: 0,
     };
-    let nextTokenInstanceId = 0;
     let isThrottled = false;
     // --- Main Render Function ---
     const render = () => {
@@ -118,21 +135,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 2. Draw token image, standing straight up
                 const pBottomCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v + logicalLength);
                 const pTopCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v);
+                const pMidLeft = gridToCanvasCoords(token.u, token.v + logicalLength / 2);
+                const pMidRight = gridToCanvasCoords(token.u + logicalWidth, token.v + logicalLength / 2);
 
                 const perspectiveHeight = pBottomCenter.y - pTopCenter.y;
-                const vMid = token.v + logicalLength / 2;
-                const scaleFactor = 1 / (1 - getVanishPoint().v_frac * vMid);
+                const perspectiveWidth = pMidRight.x - pMidLeft.x;
 
-                const imgHeight = (token.height / state.mapLength) * canvas.height * scaleFactor;
-                const imgWidth = (imgHeight / token.img.height) * token.img.width;
-                const altitudeOffset = (token.altitude / state.mapLength) * canvas.height * scaleFactor;
+                const altitudeFactor = 1 - (token.altitude / (state.mapLength * 10)); // Make altitude effect less pronounced
+                const finalHeight = perspectiveHeight * (token.height / token.length) * altitudeFactor;
+                const finalWidth = perspectiveWidth;
+
 
                 ctx.drawImage(
                     token.img,
-                    pBottomCenter.x - imgWidth / 2,
-                    pBottomCenter.y - imgHeight - altitudeOffset,
-                    imgWidth,
-                    imgHeight
+                    pBottomCenter.x - finalWidth / 2,
+                    pBottomCenter.y - finalHeight,
+                    finalWidth,
+                    finalHeight
                 );
             }
         }
@@ -403,18 +422,11 @@ document.addEventListener('DOMContentLoaded', () => {
         el.addEventListener('change', updateGridSettings);
     });
 
-    const tokenImageInput = document.getElementById('token-image-input');
-    const tokenWidthInput = document.getElementById('token-width');
-    const tokenLengthInput = document.getElementById('token-length');
-    const tokenHeightInput = document.getElementById('token-height');
-    const addTokenBtn = document.getElementById('add-token-btn');
-    const tokenLibrary = document.getElementById('token-library');
-    const tokenUnitsSpan = document.getElementById('token-units');
     let selectedTokenImage = null;
     let nextTokenId = 0;
 
     const addTokenToLibrary = () => {
-        if (!selectedTokenImage) {
+        if (!selectedTokenImage || !selectedTokenImage.src) {
             alert('Please select a token image first.');
             return;
         }
@@ -437,10 +449,14 @@ document.addEventListener('DOMContentLoaded', () => {
         tokenElement.draggable = true;
         tokenElement.dataset.tokenId = newId;
 
-        tokenLibrary.appendChild(tokenElement);
+        // Find the h4 element and insert the new token before it
+        const libraryHeader = tokenLibrary.querySelector('h4');
+        tokenLibrary.insertBefore(tokenElement, libraryHeader.nextSibling);
 
-        tokenImageInput.value = '';
-        selectedTokenImage = null;
+
+        // Reset for next token
+        tokenImageInput.value = ''; // Clear the file input
+        selectedTokenImage = null; // Clear the selected image object
     };
 
     tokenImageInput.addEventListener('change', (event) => {
@@ -486,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const newMapToken = {
                 ...originalToken,
-                instanceId: `map-token-${nextTokenInstanceId++}`,
+                instanceId: `map-token-${state.nextTokenInstanceId++}`,
                 u, // logical x (0-1)
                 v, // logical y (0-1)
                 altitude: 0,
@@ -504,11 +520,6 @@ document.addEventListener('DOMContentLoaded', () => {
             state.tokensOnMap.push(newMapToken);
         }
     });
-
-    const selectedTokenControls = document.getElementById('selected-token-controls');
-    const tokenAltitudeSlider = document.getElementById('token-altitude');
-    const altitudeValueSpan = document.getElementById('altitude-value');
-    const onMapTokenList = document.getElementById('on-map-token-list');
 
     // --- Functions ---
 
@@ -616,13 +627,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    const sessionSelect = document.getElementById('session-select');
-    const sessionNameInput = document.getElementById('session-name-input');
-    const saveSessionBtn = document.getElementById('save-session-btn');
-    const loadSessionBtn = document.getElementById('load-session-btn');
-    const deleteSessionBtn = document.getElementById('delete-session-btn');
-    const newSessionBtn = document.getElementById('new-session-btn');
-
     // --- Session Management Functions ---
     const getAppState = () => {
         // We can't save the actual `img` objects, so we just save their src
@@ -644,6 +648,8 @@ document.addEventListener('DOMContentLoaded', () => {
             tokensInLibrary: state.tokensInLibrary,
             tokensOnMap: simplifiedTokensOnMap,
             bgImage: mapContainer.style.backgroundImage,
+            nextTokenId: nextTokenId,
+            nextTokenInstanceId: state.nextTokenInstanceId,
         };
     };
 
@@ -654,9 +660,11 @@ document.addEventListener('DOMContentLoaded', () => {
             mapWidthInput.value = savedState.mapWidth || 30;
             mapLengthInput.value = savedState.mapLength || 20;
             mapUnitsSelect.value = savedState.mapUnits || 'ft';
-            state.handleTLPos = savedState.handleTLPos;
-            state.handleTRPos = savedState.handleTRPos;
+            state.handleTLPos = savedState.handleTLPos || { x: 0, y: 0 };
+            state.handleTRPos = savedState.handleTRPos || { x: canvas.width, y: 0 };
             state.tokensInLibrary = savedState.tokensInLibrary || [];
+            nextTokenId = savedState.nextTokenId || 0;
+            state.nextTokenInstanceId = savedState.nextTokenInstanceId || 0;
 
             mapContainer.style.backgroundImage = savedState.bgImage || '';
             const bgUrlMatch = (savedState.bgImage || '').match(/url\("?(.*?)"?\)/);
@@ -711,6 +719,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateGridSettings();
                 checkViewMode();
                 render();
+                // This was missing: update the handle elements after loading
+                handleTL.style.left = `${state.handleTLPos.x}px`;
+                handleTL.style.top = `${state.handleTLPos.y}px`;
+                handleTR.style.left = `${state.handleTRPos.x}px`;
+                handleTR.style.top = `${state.handleTRPos.y}px`;
                 resolve();
             });
         });
@@ -772,7 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.tokensOnMap = [];
         state.tokensInLibrary = [];
         state.selectedTokenInstanceId = null;
-        nextTokenInstanceId = 0;
+        state.nextTokenInstanceId = 0;
         nextTokenId = 0;
         tokenLibrary.innerHTML = '<h4>Token Library (Drag to Map)</h4>';
         mapContainer.style.backgroundImage = '';
