@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.viewMode === 'perspective') {
             drawHorizon();
         }
+        renderTokenList();
     };
 
     // --- Drawing Functions ---
@@ -242,26 +243,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // New, more accurate inverse function
     const canvasToGridCoords = (x, y) => {
+        if (state.viewMode === 'top-down') {
+            return {
+                u: x / canvas.width,
+                v: y / canvas.height
+            };
+        }
+
+        // --- Perspective Mode Calculation ---
         const { handleTLPos, handleTRPos } = state;
-        const bl = { x: 0, y: canvas.height };
-        const br = { x: canvas.width, y: canvas.height };
-
-        // Based on solving the gridToCanvasCoords equations for u and v
-        // v = (y - topY) / (canvas.height - topY)
-        // y = topY + v*canvas.height - v*topY
-        // y = (1-v)topY + v*canvas.height
-        // y = (1-v)(handleTLPos.y + u(handleTRPos.y - handleTLPos.y)) + v*canvas.height
-        // This gets complex. Let's use the vanishing point instead.
-
         const vp = getVanishPoint();
 
-        // If the lines are parallel, we have a simpler case (affine transformation)
-        if (vp.v_frac < 0 || vp.v_frac > 1) {
-             const v = y / canvas.height;
-             const topX = handleTLPos.x + (handleTRPos.x - handleTLPos.x) * v;
-             const botX = bl.x + (br.x - bl.x) * v;
-             const u = (x - topX) / (botX - topX);
-             return { u, v };
+        // Avoid division by zero if click is on the horizon
+        if (Math.abs(y - vp.y) < 1) {
+           const u = x / canvas.width; // Best guess on the horizon
+           const v = (y - vp.y) / (canvas.height - vp.y);
+           return { u, v };
         }
 
         const v = (y - vp.y) / (canvas.height - vp.y);
@@ -269,6 +266,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Now find u. The horizontal line at y corresponds to a single v value.
         const p1 = gridToCanvasCoords(0, v);
         const p2 = gridToCanvasCoords(1, v);
+
+        // Avoid division by zero if the line is vertical
+        if (Math.abs(p2.x - p1.x) < 1) {
+            return { u: 0.5, v }; // Best guess at the center
+        }
 
         // u is the fractional distance of x between p1.x and p2.x
         const u = (x - p1.x) / (p2.x - p1.x);
@@ -341,6 +343,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             render();
         }
+    });
+
+    onMapTokenList.addEventListener('click', (e) => {
+        const item = e.target.closest('.on-map-token-item');
+        if (!item) return;
+
+        const { instanceId } = item.dataset;
+        state.selectedTokenInstanceId = instanceId;
+        render(); // Re-render to show canvas selection outline immediately
+
+        // Temporary visual highlight on the list item
+        item.classList.add('highlight');
+        setTimeout(() => {
+            item.classList.remove('highlight');
+            // Optionally, clear selection after highlight if desired
+            // state.selectedTokenInstanceId = null;
+            // render();
+        }, 500); // Highlight for 500ms
     });
 
     document.addEventListener('mouseup', () => {
@@ -447,18 +467,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    mapContainer.addEventListener('dragover', (e) => {
+    canvas.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
     });
 
-    mapContainer.addEventListener('drop', (e) => {
+    canvas.addEventListener('drop', (e) => {
         e.preventDefault();
         const tokenId = e.dataTransfer.getData('text/plain');
         const originalToken = state.tokensInLibrary.find(t => t.id === tokenId);
 
         if (originalToken) {
-            const rect = mapContainer.getBoundingClientRect();
+            const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
@@ -477,20 +497,63 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = new Image();
             img.onload = () => {
                 newMapToken.img = img;
-                render();
+                render(); // Render only after image is loaded
             };
             img.src = newMapToken.imgSrc;
 
             state.tokensOnMap.push(newMapToken);
-            render();
         }
     });
 
     const selectedTokenControls = document.getElementById('selected-token-controls');
     const tokenAltitudeSlider = document.getElementById('token-altitude');
     const altitudeValueSpan = document.getElementById('altitude-value');
+    const onMapTokenList = document.getElementById('on-map-token-list');
 
     // --- Functions ---
+
+    const renderTokenList = () => {
+        onMapTokenList.innerHTML = '<h4>Tokens on Map</h4>'; // Clear existing list but keep header
+
+        state.tokensOnMap.forEach(token => {
+            const item = document.createElement('div');
+            item.className = 'on-map-token-item';
+            item.dataset.instanceId = token.instanceId;
+
+            const img = document.createElement('img');
+            img.src = token.imgSrc;
+            item.appendChild(img);
+
+            const info = document.createElement('div');
+            info.className = 'info';
+            const pos = document.createElement('span');
+            pos.textContent = `Pos: (${token.u.toFixed(2)}, ${token.v.toFixed(2)})`;
+            const alt = document.createElement('span');
+            alt.textContent = `Alt: ${token.altitude}`;
+            info.appendChild(pos);
+            info.appendChild(alt);
+            item.appendChild(info);
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = 0;
+            slider.max = 100;
+            slider.value = token.altitude;
+            slider.dataset.instanceId = token.instanceId;
+            slider.addEventListener('input', (e) => {
+                const targetToken = state.tokensOnMap.find(t => t.instanceId === e.target.dataset.instanceId);
+                if (targetToken) {
+                    targetToken.altitude = parseInt(e.target.value, 10);
+                    alt.textContent = `Alt: ${targetToken.altitude}`;
+                    render();
+                }
+            });
+            item.appendChild(slider);
+
+            onMapTokenList.appendChild(item);
+        });
+    };
+
     const snapTokenToGrid = (token) => {
         // Snap the token's center to the nearest grid intersection
         const snappedU = (Math.round(token.u * state.mapWidth) / state.mapWidth);

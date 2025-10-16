@@ -139,3 +139,44 @@ body {
     cursor: grabbing;
     border-style: solid;
 }
+
+#on-map-token-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.on-map-token-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    margin-bottom: 5px;
+    cursor: pointer;
+}
+
+.on-map-token-item:hover {
+    background-color: #f5f5f5;
+}
+
+.on-map-token-item img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.on-map-token-item .info {
+    flex-grow: 1;
+}
+
+.on-map-token-item .info span {
+    display: block;
+    font-size: 0.8em;
+    color: #666;
+}
+
+.highlight {
+    outline: 3px solid rgba(255, 255, 0, 0.9) !important;
+    outline-offset: 2px;
+}
