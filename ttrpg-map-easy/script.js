@@ -29,13 +29,16 @@ document.addEventListener('DOMContentLoaded', () => {
         dragOffset: { u: 0, v: 0 },
     };
     let nextTokenInstanceId = 0;
-
+    let isThrottled = false;
     // --- Main Render Function ---
     const render = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawGrid();
         drawTokens();
         drawSelectionOutline();
+        if (state.viewMode === 'perspective') {
+            drawHorizon();
+        }
     };
 
     // --- Drawing Functions ---
@@ -85,11 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
         state.tokensOnMap.sort((a, b) => a.v - b.v);
 
         for (const token of state.tokensOnMap) {
-            if (!token.img) continue;
+            if (!token.img || !token.img.complete) continue;
 
             const logicalWidth = token.width / state.mapWidth;
             const logicalLength = token.length / state.mapLength;
-            const altitude = token.altitude || 0;
 
             if (state.viewMode === 'top-down') {
                 const p = gridToCanvasCoords(token.u, token.v);
@@ -112,16 +114,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.closePath();
                 ctx.fill();
 
-                // 2. Draw token image
+                // 2. Draw token image, standing straight up
                 const pBottomCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v + logicalLength);
                 const pTopCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v);
 
                 const perspectiveHeight = pBottomCenter.y - pTopCenter.y;
-                const scaleFactor = perspectiveHeight / logicalLength / canvas.height;
+                const vMid = token.v + logicalLength / 2;
+                const scaleFactor = 1 / (1 - getVanishPoint().v_frac * vMid);
 
                 const imgHeight = (token.height / state.mapLength) * canvas.height * scaleFactor;
                 const imgWidth = (imgHeight / token.img.height) * token.img.width;
-
                 const altitudeOffset = (token.altitude / state.mapLength) * canvas.height * scaleFactor;
 
                 ctx.drawImage(
@@ -134,7 +136,42 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     };
+    const getVanishPoint = () => {
+        const { handleTLPos, handleTRPos } = state;
+        const bl = { x: 0, y: canvas.height };
+        const br = { x: canvas.width, y: canvas.height };
 
+        // Line 1: (bl.x, bl.y) to (handleTLPos.x, handleTLPos.y)
+        const A1 = handleTLPos.y - bl.y;
+        const B1 = bl.x - handleTLPos.x;
+        const C1 = A1 * bl.x + B1 * bl.y;
+
+        // Line 2: (br.x, br.y) to (handleTRPos.x, handleTRPos.y)
+        const A2 = handleTRPos.y - br.y;
+        const B2 = br.x - handleTRPos.x;
+        const C2 = A2 * br.x + B2 * br.y;
+
+        const det = A1 * B2 - A2 * B1;
+        if (det === 0) {
+            return { x: canvas.width / 2, y: -canvas.height, v_frac: -1 }; // Parallel lines, effectively infinite vanishing point
+        } else {
+            const x = (B2 * C1 - B1 * C2) / det;
+            const y = (A1 * C2 - A2 * C1) / det;
+            const v_frac = y / (y - canvas.height);
+            return { x, y, v_frac };
+        }
+    };
+    const drawHorizon = () => {
+        const vp = getVanishPoint();
+        if (vp.y > 0 && vp.y < canvas.height) {
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, vp.y);
+            ctx.lineTo(canvas.width, vp.y);
+            ctx.stroke();
+        }
+    };
     const drawSelectionOutline = () => {
         if (!state.selectedTokenInstanceId) return;
         const token = state.tokensOnMap.find(t => t.instanceId === state.selectedTokenInstanceId);
@@ -196,33 +233,49 @@ document.addEventListener('DOMContentLoaded', () => {
         const topX = handleTLPos.x + (handleTRPos.x - handleTLPos.x) * u;
         const topY = handleTLPos.y + (handleTRPos.y - handleTLPos.y) * u;
         const botX = bl.x + (br.x - bl.x) * u;
-        const botY = bl.y + (br.y - bl.y) * u;
 
         const x = topX + (botX - topX) * v;
-        const y = topY + (botY - topY) * v;
+        const y = topY + (canvas.height - topY) * v;
 
         return { x, y };
     };
 
-    // Inverse of the above. Not a perfect inverse, but a good approximation.
+    // New, more accurate inverse function
     const canvasToGridCoords = (x, y) => {
         const { handleTLPos, handleTRPos } = state;
         const bl = { x: 0, y: canvas.height };
         const br = { x: canvas.width, y: canvas.height };
 
-        // Approximate v (vertical position)
-        const leftY = handleTLPos.y + (bl.y - handleTLPos.y - (handleTLPos.y - handleTRPos.y) * (x / canvas.width));
-        const rightY = handleTRPos.y + (br.y - handleTRPos.y);
-        const yAtX = leftY + (rightY - leftY) * (x / canvas.width);
-        const v = y / yAtX;
+        // Based on solving the gridToCanvasCoords equations for u and v
+        // v = (y - topY) / (canvas.height - topY)
+        // y = topY + v*canvas.height - v*topY
+        // y = (1-v)topY + v*canvas.height
+        // y = (1-v)(handleTLPos.y + u(handleTRPos.y - handleTLPos.y)) + v*canvas.height
+        // This gets complex. Let's use the vanishing point instead.
 
-        // Approximate u (horizontal position)
-        const topX = handleTLPos.x + (handleTRPos.x - handleTLPos.x) * v;
-        const botX = bl.x + (br.x - bl.x) * v;
-        const u = (x - topX) / (botX - topX);
+        const vp = getVanishPoint();
 
-        return { u: Math.max(0, Math.min(1, u)), v: Math.max(0, Math.min(1, v)) };
+        // If the lines are parallel, we have a simpler case (affine transformation)
+        if (vp.v_frac < 0 || vp.v_frac > 1) {
+             const v = y / canvas.height;
+             const topX = handleTLPos.x + (handleTRPos.x - handleTLPos.x) * v;
+             const botX = bl.x + (br.x - bl.x) * v;
+             const u = (x - topX) / (botX - topX);
+             return { u, v };
+        }
+
+        const v = (y - vp.y) / (canvas.height - vp.y);
+
+        // Now find u. The horizontal line at y corresponds to a single v value.
+        const p1 = gridToCanvasCoords(0, v);
+        const p2 = gridToCanvasCoords(1, v);
+
+        // u is the fractional distance of x between p1.x and p2.x
+        const u = (x - p1.x) / (p2.x - p1.x);
+
+        return { u, v };
     };
+
 
     const checkViewMode = () => {
         const isTopDown = state.handleTLPos.x === 0 && state.handleTLPos.y === 0 &&
@@ -247,24 +300,33 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('mousemove', (e) => {
         if (state.draggingHandle) {
             const rect = mapContainer.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            let x = e.clientX - rect.left;
+            let y = e.clientY - rect.top;
 
-            // Clamp coordinates to stay within canvas bounds
-            const clampedX = Math.max(0, Math.min(x, rect.width));
-            const clampedY = Math.max(0, Math.min(y, rect.height));
+            // Clamp coordinates to stay within canvas bounds for handles
+            x = Math.max(0, Math.min(x, rect.width));
+            y = Math.max(0, Math.min(y, rect.height));
 
             if (state.draggingHandle.id === 'handle-tl') {
-                state.handleTLPos.x = clampedX;
-                state.handleTLPos.y = clampedY;
+                state.handleTLPos.x = x;
+                state.handleTLPos.y = y;
+                state.handleTRPos.y = y; // Constrain vertical movement
             } else {
-                state.handleTRPos.x = clampedX;
-                state.handleTRPos.y = clampedY;
+                state.handleTRPos.x = x;
+                state.handleTRPos.y = y;
+                state.handleTLPos.y = y; // Constrain vertical movement
             }
 
             checkViewMode();
             updateHandles();
-            drawGrid();
+            if (!isThrottled) {
+                isThrottled = true;
+                setTimeout(() => {
+                    render();
+                    isThrottled = false;
+                }, 1000 / 30); // throttle to 30fps
+            }
+
         } else if (state.draggingTokenInstanceId) {
             const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
             if (!token) return;
@@ -285,6 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.draggingHandle) {
             state.draggingHandle = null;
             mapContainer.style.cursor = 'default';
+            render(); // Final render after dragging handle
         } else if (state.draggingTokenInstanceId) {
             const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
             if (token) {
@@ -406,6 +469,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 instanceId: `map-token-${nextTokenInstanceId++}`,
                 u, // logical x (0-1)
                 v, // logical y (0-1)
+                altitude: 0,
                 img: null,
             };
 
@@ -427,9 +491,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const altitudeValueSpan = document.getElementById('altitude-value');
 
     // --- Functions ---
+    const snapTokenToGrid = (token) => {
+        // Snap the token's center to the nearest grid intersection
+        const snappedU = (Math.round(token.u * state.mapWidth) / state.mapWidth);
+        const snappedV = (Math.round(token.v * state.mapLength) / state.mapLength);
+        token.u = snappedU;
+        token.v = snappedV;
+    };
+
     const updateSelectedTokenUI = () => {
         const token = state.tokensOnMap.find(t => t.instanceId === state.selectedTokenInstanceId);
-        if (token && state.viewMode === 'perspective') {
+        if (token) {
             selectedTokenControls.style.display = 'block';
             const currentAltitude = token.altitude || 0;
             tokenAltitudeSlider.value = currentAltitude;
@@ -439,25 +511,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Event Listeners ---
-    const snapTokenToGrid = (token) => {
-        const snappedU = Math.round(token.u * state.mapWidth) / state.mapWidth;
-        const snappedV = Math.round(token.v * state.mapLength) / state.mapLength;
-        token.u = snappedU;
-        token.v = snappedV;
-    };
-
     canvas.addEventListener('mousedown', (e) => {
         const rect = mapContainer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        const { u, v } = canvasToGridCoords(x, y);
+        let { u, v } = canvasToGridCoords(x, y);
 
+        // Find the token that is visually "on top" (higher v value)
         const clickedToken = [...state.tokensOnMap]
-            .reverse()
+            .sort((a, b) => b.v - a.v) // sort descending by v
             .find(token => {
                 const logicalWidth = token.width / state.mapWidth;
                 const logicalLength = token.length / state.mapLength;
+                // Check if the click is within the token's bounding box in grid coordinates
                 return u >= token.u && u <= token.u + logicalWidth &&
                        v >= token.v && v <= token.v + logicalLength;
             });
@@ -497,7 +563,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Session Management Functions ---
     const getAppState = () => {
         // We can't save the actual `img` objects, so we just save their src
-        const simplifiedTokensOnMap = state.tokensOnMap.map(t => ({...t, img: undefined, imgSrc: t.img.src}));
+        const simplifiedTokensOnMap = state.tokensOnMap.map(t => {
+            const tokenCopy = {...t};
+            if (tokenCopy.img) {
+                tokenCopy.imgSrc = tokenCopy.img.src;
+            }
+            delete tokenCopy.img;
+            return tokenCopy;
+        });
 
         return {
             mapWidth: state.mapWidth,
@@ -512,43 +585,72 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const loadAppState = (savedState) => {
-        // Reset current state
-        newSessionBtn.click();
+        return new Promise((resolve) => {
+            newSessionBtn.click();
 
-        mapWidthInput.value = savedState.mapWidth;
-        mapLengthInput.value = savedState.mapLength;
-        mapUnitsSelect.value = savedState.mapUnits;
-        state.handleTLPos = savedState.handleTLPos;
-        state.handleTRPos = savedState.handleTRPos;
-        state.tokensInLibrary = savedState.tokensInLibrary || [];
+            mapWidthInput.value = savedState.mapWidth || 30;
+            mapLengthInput.value = savedState.mapLength || 20;
+            mapUnitsSelect.value = savedState.mapUnits || 'ft';
+            state.handleTLPos = savedState.handleTLPos;
+            state.handleTRPos = savedState.handleTRPos;
+            state.tokensInLibrary = savedState.tokensInLibrary || [];
 
-        mapContainer.style.backgroundImage = savedState.bgImage;
+            mapContainer.style.backgroundImage = savedState.bgImage || '';
+            const bgUrlMatch = (savedState.bgImage || '').match(/url\("?(.*?)"?\)/);
+            if (bgUrlMatch) {
+                 const img = new Image();
+                 img.onload = () => {
+                    const containerMaxWidth = mapContainer.parentElement.clientWidth;
+                    const scale = Math.min(1, containerMaxWidth / img.width);
+                    mapContainer.style.width = `${img.width * scale}px`;
+                    mapContainer.style.height = `${img.height * scale}px`;
+                    resizeCanvas();
+                 };
+                 img.src = bgUrlMatch[1];
+            } else {
+                 resizeCanvas();
+            }
 
-        // Re-populate library visuals
-        tokenLibrary.innerHTML = '<h4>Token Library (Drag to Map)</h4>';
-        state.tokensInLibrary.forEach(token => {
-            const tokenElement = document.createElement('div');
-            tokenElement.id = token.id;
-            tokenElement.className = 'token-in-library';
-            tokenElement.style.backgroundImage = `url(${token.imgSrc})`;
-            tokenElement.draggable = true;
-            tokenElement.dataset.tokenId = token.id;
-            tokenLibrary.appendChild(tokenElement);
-        });
 
-        // Re-create tokens on map and preload their images
-        state.tokensOnMap = savedState.tokensOnMap || [];
-        state.tokensOnMap.forEach(token => {
-            const img = new Image();
-            img.onload = () => {
-                token.img = img;
+            tokenLibrary.innerHTML = '<h4>Token Library (Drag to Map)</h4>';
+            state.tokensInLibrary.forEach(token => {
+                const tokenElement = document.createElement('div');
+                tokenElement.id = token.id;
+                tokenElement.className = 'token-in-library';
+                tokenElement.style.backgroundImage = `url(${token.imgSrc})`;
+                tokenElement.draggable = true;
+                tokenElement.dataset.tokenId = token.id;
+                tokenLibrary.appendChild(tokenElement);
+            });
+
+            state.tokensOnMap = savedState.tokensOnMap || [];
+            const imageLoadPromises = state.tokensOnMap.map(token => {
+                return new Promise((imgResolve) => {
+                    if (token.imgSrc) {
+                        const img = new Image();
+                        img.onload = () => {
+                            token.img = img;
+                            imgResolve();
+                        };
+                        img.onerror = () => {
+                            console.error("Failed to load token image:", token.imgSrc);
+                            imgResolve(); // Resolve anyway to not block rendering
+                        };
+                        img.src = token.imgSrc;
+                    } else {
+                        imgResolve();
+                    }
+                });
+            });
+
+            Promise.all(imageLoadPromises).then(() => {
+                updateHandles();
+                updateGridSettings();
+                checkViewMode();
                 render();
-            };
-            img.src = token.imgSrc;
+                resolve();
+            });
         });
-
-        updateHandles();
-        updateGridSettings();
     };
 
     const populateSessionSelector = () => {
@@ -581,8 +683,17 @@ document.addEventListener('DOMContentLoaded', () => {
             alert('Please select a session to load.');
             return;
         }
-        const savedState = JSON.parse(localStorage.getItem(sessionKey));
-        loadAppState(savedState);
+        try {
+            const savedState = JSON.parse(localStorage.getItem(sessionKey));
+            if (savedState) {
+                loadAppState(savedState);
+            } else {
+                alert('Error: Could not load session data.');
+            }
+        } catch (e) {
+            alert('Error: Failed to parse session data. It might be corrupted.');
+            console.error(e);
+        }
     });
 
     deleteSessionBtn.addEventListener('click', () => {
@@ -598,10 +709,13 @@ document.addEventListener('DOMContentLoaded', () => {
         state.tokensOnMap = [];
         state.tokensInLibrary = [];
         state.selectedTokenInstanceId = null;
+        nextTokenInstanceId = 0;
+        nextTokenId = 0;
         tokenLibrary.innerHTML = '<h4>Token Library (Drag to Map)</h4>';
         mapContainer.style.backgroundImage = '';
         sessionNameInput.value = '';
         resetHandles();
+        checkViewMode();
         updateGridSettings();
     });
 
