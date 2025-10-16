@@ -178,12 +178,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 // front and back of its base. This is our basis for height.
                 const perspectiveLength = pBottomCenter.y - pTopCenter.y;
 
-                // The final height is its aspect ratio (height/length) times the visual length on screen.
-                const finalHeight = perspectiveLength * (token.height / token.length);
                 const finalWidth = perspectiveWidth;
 
-                // Altitude: simply shift the token up by a fraction of the canvas height
-                const altitudeOffset = token.altitude * (canvas.height / 500);
+                // The final height is its aspect ratio (height/width) times the visual width on screen.
+                // This preserves the token's appearance regardless of perspective depth.
+                let finalHeight = finalWidth; // Default to a square aspect ratio
+                if (token.width > 0) {
+                    finalHeight = finalWidth * (token.height / token.width);
+                }
+
+                // Altitude offset must also be scaled by perspective.
+                // We calculate the on-screen size of a single map unit of length at the token's depth.
+                let onScreenUnitLength = 0;
+                if (token.length > 0) {
+                    onScreenUnitLength = perspectiveLength / token.length;
+                }
+                const altitudeOffset = token.altitude * onScreenUnitLength;
 
 
                 ctx.drawImage(
@@ -193,6 +203,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     finalWidth,
                     finalHeight
                 );
+
+                // 3. Add overlay if token is "underground"
+                if (token.altitude < 0) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // Same as shadow color
+                    ctx.fillRect(
+                        pBottomCenter.x - finalWidth / 2,
+                        pBottomCenter.y - finalHeight - altitudeOffset,
+                        finalWidth,
+                        finalHeight
+                    );
+                }
             }
         }
     };
@@ -605,10 +626,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 token.width = newWidth;
                 token.length = newLength;
                 token.height = newHeight;
-                renderTokenList(); // Update the list with new dimensions if needed
+                renderTokenList(); // This was already here, which is good.
             }
         }
         render();
+        renderTokenList(); // Explicitly re-render the list to show changes
         exitEditMode();
     });
 
@@ -651,11 +673,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const img = new Image();
             img.onload = () => {
                 newMapToken.img = img;
-                render(); // Render only after image is loaded
+                state.tokensOnMap.push(newMapToken); // Add to state only when loaded
+                render(); // Render now that the token is fully ready
             };
             img.src = newMapToken.imgSrc;
-
-            state.tokensOnMap.push(newMapToken);
         }
     });
 
@@ -680,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
              const dims = document.createElement('span');
             dims.textContent = `Size: ${token.width}x${token.length}x${token.height}`;
             const alt = document.createElement('span');
-            alt.textContent = `Alt: ${token.altitude}`;
+            alt.textContent = `Ele: ${token.altitude}`;
             info.appendChild(pos);
             info.appendChild(dims);
             info.appendChild(alt);
@@ -691,16 +712,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const slider = document.createElement('input');
             slider.type = 'range';
-            slider.min = 0;
+            slider.min = -100;
             slider.max = 100;
             slider.value = token.altitude;
-            slider.title = "Altitude";
+            slider.title = "Elevation";
             slider.dataset.instanceId = token.instanceId;
             slider.addEventListener('input', (e) => {
                 const targetToken = state.tokensOnMap.find(t => t.instanceId === e.target.dataset.instanceId);
                 if (targetToken) {
                     targetToken.altitude = parseInt(e.target.value, 10);
-                    alt.textContent = `Alt: ${targetToken.altitude}`;
+                    alt.textContent = `Ele: ${targetToken.altitude}`;
                     render();
                 }
             });
