@@ -261,20 +261,32 @@ document.addEventListener('DOMContentLoaded', () => {
         const logicalWidth = token.width / state.mapWidth;
         const logicalLength = token.length / state.mapLength;
 
-        const p1 = gridToCanvasCoords(token.u, token.v);
-        const p2 = gridToCanvasCoords(token.u + logicalWidth, token.v);
-        const p3 = gridToCanvasCoords(token.u + logicalWidth, token.v + logicalLength);
-        const p4 = gridToCanvasCoords(token.u, token.v + logicalLength);
+        if (state.viewMode === 'top-down') {
+            const p = gridToCanvasCoords(token.u, token.v);
+            const w = (canvas.width / state.mapWidth) * token.width;
+            const h = (canvas.height / state.mapLength) * token.length;
+            ctx.strokeRect(p.x - w/2, p.y - h/2, w, h);
+        } else {
+            // Use the same perspective logic as drawTokens to get the base shape
+            const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
+            const screenV = Math.pow(token.v, perspectiveFactor);
+            const screenVEnd = Math.pow(Math.min(1, token.v + logicalLength), perspectiveFactor);
 
-        ctx.strokeStyle = 'rgba(255, 255, 0, 0.9)';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(p1.x, p1.y);
-        ctx.lineTo(p2.x, p2.y);
-        ctx.lineTo(p3.x, p3.y);
-        ctx.lineTo(p4.x, p4.y);
-        ctx.closePath();
-        ctx.stroke();
+            const p1 = gridToCanvasCoords(token.u, screenV);
+            const p2 = gridToCanvasCoords(token.u + logicalWidth, screenV);
+            const p3 = gridToCanvasCoords(token.u + logicalWidth, screenVEnd);
+            const p4 = gridToCanvasCoords(token.u, screenVEnd);
+
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.9)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.lineTo(p4.x, p4.y);
+            ctx.closePath();
+            ctx.stroke();
+        }
     };
 
     const updateHandles = () => {
@@ -364,7 +376,55 @@ document.addEventListener('DOMContentLoaded', () => {
         const v_true = Math.pow(v_screen, 1 / perspectiveFactor);
 
 
-        return { u: Math.max(0, Math.min(1, u)), v: v_true };
+        return { u: u, v: v_true }; // Allow dragging outside the 0-1 range
+    };
+
+
+    // --- New Helper: Get a token's on-screen bounding box ---
+    const getTokenScreenRect = (token) => {
+        if (!token.img || !token.img.complete) return null;
+
+        const logicalWidth = token.width / state.mapWidth;
+        const logicalLength = token.length / state.mapLength;
+
+        if (state.viewMode === 'top-down') {
+            const p = gridToCanvasCoords(token.u, token.v);
+            const w = (canvas.width / state.mapWidth) * token.width;
+            const h = (canvas.height / state.mapLength) * token.length;
+            return { x: p.x - w/2, y: p.y - h/2, width: w, height: h };
+        } else { // Perspective
+            const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
+            const screenV = Math.pow(token.v, perspectiveFactor);
+            const screenVEnd = Math.pow(Math.min(1, token.v + logicalLength), perspectiveFactor);
+
+            const p1 = gridToCanvasCoords(token.u, screenV);
+            const p2 = gridToCanvasCoords(token.u + logicalWidth, screenV);
+            const p3 = gridToCanvasCoords(token.u + logicalWidth, screenVEnd);
+            const p4 = gridToCanvasCoords(token.u, screenVEnd);
+
+            const pBottomCenter = { x: (p3.x + p4.x) / 2, y: (p3.y + p4.y) / 2 };
+            const pTopCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+
+            const perspectiveWidth = p2.x - p1.x;
+            const perspectiveLength = pBottomCenter.y - pTopCenter.y;
+
+            const finalWidth = perspectiveWidth;
+            let finalHeight = finalWidth;
+            if (token.width > 0) {
+                finalHeight = finalWidth * (token.height / token.width);
+            }
+
+            let onScreenUnitLength = 0;
+            if (token.length > 0) {
+                onScreenUnitLength = perspectiveLength / token.length;
+            }
+            const altitudeOffset = token.altitude * onScreenUnitLength;
+
+            const x = pBottomCenter.x - finalWidth / 2;
+            const y = pBottomCenter.y - finalHeight - altitudeOffset;
+
+            return { x, y, width: finalWidth, height: finalHeight };
+        }
     };
 
 
@@ -626,11 +686,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 token.width = newWidth;
                 token.length = newLength;
                 token.height = newHeight;
-                renderTokenList(); // This was already here, which is good.
             }
         }
         render();
-        renderTokenList(); // Explicitly re-render the list to show changes
+        renderTokenList(); // Re-render the list to show all changes
         exitEditMode();
     });
 
@@ -696,41 +755,74 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const info = document.createElement('div');
             info.className = 'info';
-            const pos = document.createElement('span');
-            pos.textContent = `Pos: (${token.u.toFixed(2)}, ${token.v.toFixed(2)})`;
+            const posLabel = document.createElement('span');
+            posLabel.textContent = 'Pos: ';
+            const uInput = document.createElement('input');
+            uInput.type = 'number';
+            uInput.value = token.u.toFixed(2);
+            uInput.step = 0.01;
+            uInput.style.width = "50px";
+            uInput.addEventListener('input', (e) => {
+                const targetToken = state.tokensOnMap.find(t => t.instanceId === token.instanceId);
+                if (targetToken) {
+                    targetToken.u = parseFloat(e.target.value);
+                    render();
+                }
+            });
+            const vInput = document.createElement('input');
+            vInput.type = 'number';
+            vInput.value = token.v.toFixed(2);
+            vInput.step = 0.01;
+            vInput.style.width = "50px";
+            vInput.addEventListener('input', (e) => {
+                const targetToken = state.tokensOnMap.find(t => t.instanceId === token.instanceId);
+                if (targetToken) {
+                    targetToken.v = parseFloat(e.target.value);
+                    render();
+                }
+            });
+
+            const posContainer = document.createElement('div');
+            posContainer.appendChild(posLabel);
+            posContainer.appendChild(uInput);
+            posContainer.appendChild(vInput);
+
              const dims = document.createElement('span');
             dims.textContent = `Size: ${token.width}x${token.length}x${token.height}`;
             const alt = document.createElement('span');
-            alt.textContent = `Ele: ${token.altitude}`;
-            info.appendChild(pos);
+            alt.textContent = `Ele:`;
+            const altInput = document.createElement('input');
+            altInput.type = 'number';
+            altInput.value = token.altitude;
+            altInput.style.width = "50px";
+            altInput.title = "Elevation";
+            altInput.dataset.instanceId = token.instanceId;
+            altInput.addEventListener('input', (e) => {
+                 const targetToken = state.tokensOnMap.find(t => t.instanceId === e.target.dataset.instanceId);
+                 if (targetToken) {
+                    targetToken.altitude = parseInt(e.target.value, 10);
+                    render();
+                 }
+            });
+
+            info.appendChild(posContainer);
             info.appendChild(dims);
-            info.appendChild(alt);
+            const altContainer = document.createElement('div');
+            altContainer.style.display = 'flex';
+            altContainer.style.alignItems = 'center';
+            altContainer.appendChild(alt);
+            altContainer.appendChild(altInput);
+            info.appendChild(altContainer);
             item.appendChild(info);
 
              const controls = document.createElement('div');
              controls.className = 'on-map-token-controls';
 
-            const slider = document.createElement('input');
-            slider.type = 'range';
-            slider.min = -100;
-            slider.max = 100;
-            slider.value = token.altitude;
-            slider.title = "Elevation";
-            slider.dataset.instanceId = token.instanceId;
-            slider.addEventListener('input', (e) => {
-                const targetToken = state.tokensOnMap.find(t => t.instanceId === e.target.dataset.instanceId);
-                if (targetToken) {
-                    targetToken.altitude = parseInt(e.target.value, 10);
-                    alt.textContent = `Ele: ${targetToken.altitude}`;
-                    render();
-                }
-            });
-            controls.appendChild(slider);
-
             const editButton = document.createElement('button');
             editButton.textContent = 'Edit';
             editButton.dataset.instanceId = token.instanceId;
             editButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent the item click event
                 const instanceId = e.target.dataset.instanceId;
                 const tokenToEdit = state.tokensOnMap.find(t => t.instanceId === instanceId);
                 if (tokenToEdit) {
@@ -738,6 +830,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             controls.appendChild(editButton);
+
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.dataset.instanceId = token.instanceId;
+            deleteButton.style.backgroundColor = '#ff6b6b';
+            deleteButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent the item click event
+                const instanceId = e.target.dataset.instanceId;
+                state.tokensOnMap = state.tokensOnMap.filter(t => t.instanceId !== instanceId);
+                if (state.selectedTokenInstanceId === instanceId) {
+                    state.selectedTokenInstanceId = null;
+                    updateSelectedTokenUI();
+                }
+                render();
+                renderTokenList(); // Re-render the list itself
+            });
+            controls.appendChild(deleteButton);
 
 
             item.appendChild(controls);
@@ -786,22 +895,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const rect = mapContainer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        let { u, v } = canvasToGridCoords(x, y);
 
         // Find the token that is visually "on top" (higher v value)
         const clickedToken = [...state.tokensOnMap]
-            .sort((a, b) => b.v - a.v) // sort descending by v
+            .sort((a, b) => b.v - a.v) // sort descending by v (front-most)
             .find(token => {
-                const logicalWidth = token.width / state.mapWidth;
-                const logicalLength = token.length / state.mapLength;
-                // Check if the click is within the token's bounding box in grid coordinates
-                return u >= token.u && u <= token.u + logicalWidth &&
-                       v >= token.v && v <= token.v + logicalLength;
+                const bounds = getTokenScreenRect(token);
+                if (!bounds) return false;
+                // Check if the click is within the token's VISIBLE bounding box
+                return x >= bounds.x && x <= bounds.x + bounds.width &&
+                       y >= bounds.y && y <= bounds.y + bounds.height;
             });
 
         if (clickedToken) {
             state.draggingTokenInstanceId = clickedToken.instanceId;
             state.selectedTokenInstanceId = clickedToken.instanceId;
+
+            // Use the original, correct drag offset calculation
+            let { u, v } = canvasToGridCoords(x, y);
             state.dragOffset = {
                 u: u - clickedToken.u,
                 v: v - clickedToken.v
