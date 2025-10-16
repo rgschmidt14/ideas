@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mapWidthInput = document.getElementById('map-width');
     const mapLengthInput = document.getElementById('map-length');
     const mapUnitsSelect = document.getElementById('map-units');
+    const mapIncrementInput = document.getElementById('map-increment');
     const handleTL = document.getElementById('handle-tl');
     const handleTR = document.getElementById('handle-tr');
     const tokenImageInput = document.getElementById('token-image-input');
@@ -19,6 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const tokenHeightInput = document.getElementById('token-height');
     const addTokenBtn = document.getElementById('add-token-btn');
     const tokenLibrary = document.getElementById('token-library');
+    const tokenModeHeader = document.getElementById('token-mode-header');
+    const tokenPreview = document.getElementById('token-preview');
+    const updateTokenBtn = document.getElementById('update-token-btn');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
     const tokenUnitsSpan = document.getElementById('token-units');
     const selectedTokenControls = document.getElementById('selected-token-controls');
     const tokenAltitudeSlider = document.getElementById('token-altitude');
@@ -45,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
         draggingTokenInstanceId: null,
         dragOffset: { u: 0, v: 0 },
         nextTokenInstanceId: 0,
+        editingTokenId: null, // Can be library token ID or map token instance ID
+        editingTokenType: null // 'library' or 'map'
     };
     let isThrottled = false;
     // --- Main Render Function ---
@@ -63,26 +70,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const drawGrid = () => {
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.lineWidth = 1;
+        const increment = parseInt(mapIncrementInput.value, 10) || 1;
 
         if (state.viewMode === 'top-down') {
-            const cellWidth = canvas.width / state.mapWidth;
-            const cellHeight = canvas.height / state.mapLength;
-            for (let i = 1; i < state.mapWidth; i++) {
+            const numWidthSteps = state.mapWidth / increment;
+            for (let i = 1; i < numWidthSteps; i++) {
+                const x = (i * increment / state.mapWidth) * canvas.width;
                 ctx.beginPath();
-                ctx.moveTo(i * cellWidth, 0);
-                ctx.lineTo(i * cellWidth, canvas.height);
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
                 ctx.stroke();
             }
-            for (let i = 1; i < state.mapLength; i++) {
+            const numLengthSteps = state.mapLength / increment;
+            for (let i = 1; i < numLengthSteps; i++) {
+                const y = (i * increment / state.mapLength) * canvas.height;
                 ctx.beginPath();
-                ctx.moveTo(0, i * cellHeight);
-                ctx.lineTo(canvas.width, i * cellHeight);
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
                 ctx.stroke();
             }
         } else { // Perspective
             const { mapWidth, mapLength } = state;
-            for (let i = 1; i < mapWidth; i++) {
-                const u = i / mapWidth;
+
+            // Draw vertical lines (converging)
+            const numWidthSteps = mapWidth / increment;
+            for (let i = 1; i < numWidthSteps; i++) {
+                const u = (i * increment) / mapWidth;
                 const p1 = gridToCanvasCoords(u, 0);
                 const p2 = gridToCanvasCoords(u, 1);
                 ctx.beginPath();
@@ -90,8 +103,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.lineTo(p2.x, p2.y);
                 ctx.stroke();
             }
-            for (let i = 1; i < mapLength; i++) {
-                const v = i / mapLength;
+
+            // Draw horizontal lines (with perspective scaling)
+            const numLengthSteps = mapLength / increment;
+            // This factor determines the "curve" of the perspective.
+            // A value of 1 is linear. Higher values bend the lines more towards the horizon.
+            // It's based on how far down the handles are pulled.
+            const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4; // Range of 1 to 5
+
+            for (let i = 1; i < numLengthSteps; i++) {
+                // 'd' is the true depth fraction (linear), from back (0) to front (1)
+                const d = (i * increment) / mapLength;
+
+                // 'v' is the on-screen depth fraction (curved using a power function)
+                // It maps the linear depth to a perspective-correct position on screen.
+                const v = Math.pow(d, perspectiveFactor);
+
                 const p1 = gridToCanvasCoords(0, v);
                 const p2 = gridToCanvasCoords(1, v);
                 ctx.beginPath();
@@ -111,17 +138,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const logicalWidth = token.width / state.mapWidth;
             const logicalLength = token.length / state.mapLength;
 
+            // The `v` coordinate is "true" depth (0-1). We need to convert it to the
+            // on-screen `v` for drawing, using the same perspective formula as the grid.
+            const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
+            const screenV = Math.pow(token.v, perspectiveFactor);
+            const screenVEnd = Math.pow(Math.min(1, token.v + logicalLength), perspectiveFactor);
+
+
             if (state.viewMode === 'top-down') {
                 const p = gridToCanvasCoords(token.u, token.v);
                 const w = (canvas.width / state.mapWidth) * token.width;
                 const h = (canvas.height / state.mapLength) * token.length;
-                ctx.drawImage(token.img, p.x, p.y, w, h);
+                ctx.drawImage(token.img, p.x - w/2, p.y - h/2, w, h);
             } else { // Perspective
                 // 1. Draw shadow
-                const p1 = gridToCanvasCoords(token.u, token.v);
-                const p2 = gridToCanvasCoords(token.u + logicalWidth, token.v);
-                const p3 = gridToCanvasCoords(token.u + logicalWidth, token.v + logicalLength);
-                const p4 = gridToCanvasCoords(token.u, token.v + logicalLength);
+                // We use the screen-space V values to get the correct perspective shape
+                const p1 = gridToCanvasCoords(token.u, screenV);
+                const p2 = gridToCanvasCoords(token.u + logicalWidth, screenV);
+                const p3 = gridToCanvasCoords(token.u + logicalWidth, screenVEnd);
+                const p4 = gridToCanvasCoords(token.u, screenVEnd);
 
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
                 ctx.beginPath();
@@ -133,23 +168,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.fill();
 
                 // 2. Draw token image, standing straight up
-                const pBottomCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v + logicalLength);
-                const pTopCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v);
-                const pMidLeft = gridToCanvasCoords(token.u, token.v + logicalLength / 2);
-                const pMidRight = gridToCanvasCoords(token.u + logicalWidth, token.v + logicalLength / 2);
+                const pBottomCenter = { x: (p3.x + p4.x) / 2, y: (p3.y + p4.y) / 2 };
+                const pTopCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
 
-                const perspectiveHeight = pBottomCenter.y - pTopCenter.y;
-                const perspectiveWidth = pMidRight.x - pMidLeft.x;
+                // The token's visual width is the width of its base on screen
+                const perspectiveWidth = p2.x - p1.x;
 
-                const altitudeFactor = 1 - (token.altitude / (state.mapLength * 10)); // Make altitude effect less pronounced
-                const finalHeight = perspectiveHeight * (token.height / token.length) * altitudeFactor;
+                // The token's visual "length" on screen is the distance between the
+                // front and back of its base. This is our basis for height.
+                const perspectiveLength = pBottomCenter.y - pTopCenter.y;
+
+                // The final height is its aspect ratio (height/length) times the visual length on screen.
+                const finalHeight = perspectiveLength * (token.height / token.length);
                 const finalWidth = perspectiveWidth;
+
+                // Altitude: simply shift the token up by a fraction of the canvas height
+                const altitudeOffset = token.altitude * (canvas.height / 500);
 
 
                 ctx.drawImage(
                     token.img,
                     pBottomCenter.x - finalWidth / 2,
-                    pBottomCenter.y - finalHeight,
+                    pBottomCenter.y - finalHeight - altitudeOffset,
                     finalWidth,
                     finalHeight
                 );
@@ -276,25 +316,34 @@ document.addEventListener('DOMContentLoaded', () => {
         // Avoid division by zero if click is on the horizon
         if (Math.abs(y - vp.y) < 1) {
            const u = x / canvas.width; // Best guess on the horizon
-           const v = (y - vp.y) / (canvas.height - vp.y);
-           return { u, v };
+           let v_screen = (y - vp.y) / (canvas.height - vp.y);
+           v_screen = Math.max(0, Math.min(1, v_screen));
+           const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
+           const v_true = Math.pow(v_screen, 1 / perspectiveFactor);
+           return { u, v: v_true };
         }
 
-        const v = (y - vp.y) / (canvas.height - vp.y);
+        let v_screen = (y - vp.y) / (canvas.height - vp.y);
+        v_screen = Math.max(0, Math.min(1, v_screen)); // Clamp v_screen between 0 and 1
 
-        // Now find u. The horizontal line at y corresponds to a single v value.
-        const p1 = gridToCanvasCoords(0, v);
-        const p2 = gridToCanvasCoords(1, v);
+        // Now find u. The horizontal line at y corresponds to a single v value on screen.
+        const p1 = gridToCanvasCoords(0, v_screen);
+        const p2 = gridToCanvasCoords(1, v_screen);
 
         // Avoid division by zero if the line is vertical
         if (Math.abs(p2.x - p1.x) < 1) {
-            return { u: 0.5, v }; // Best guess at the center
+             return { u: 0.5, v: v_screen }; // Best guess at the center
         }
 
         // u is the fractional distance of x between p1.x and p2.x
         const u = (x - p1.x) / (p2.x - p1.x);
 
-        return { u, v };
+        // Now, convert the on-screen v (v_screen) to the true depth v (v_true)
+        const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
+        const v_true = Math.pow(v_screen, 1 / perspectiveFactor);
+
+
+        return { u: Math.max(0, Math.min(1, u)), v: v_true };
     };
 
 
@@ -425,6 +474,60 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedTokenImage = null;
     let nextTokenId = 0;
 
+    const renderLibrary = () => {
+        const libraryHeader = tokenLibrary.querySelector('h4');
+        // Clear existing tokens except the header
+        while (libraryHeader.nextSibling) {
+            libraryHeader.nextSibling.remove();
+        }
+
+        state.tokensInLibrary.forEach(token => {
+            const tokenElement = document.createElement('div');
+            tokenElement.id = token.id;
+            tokenElement.className = 'token-in-library';
+            tokenElement.style.backgroundImage = `url(${token.imgSrc})`;
+            tokenElement.draggable = true;
+            tokenElement.dataset.tokenId = token.id;
+            tokenLibrary.appendChild(tokenElement);
+        });
+    };
+
+    const enterEditMode = (token, type) => {
+        state.editingTokenId = token.id || token.instanceId;
+        state.editingTokenType = type;
+
+        tokenModeHeader.textContent = "Edit Token";
+        tokenPreview.src = token.imgSrc;
+        tokenPreview.style.display = 'block';
+        tokenWidthInput.value = token.width;
+        tokenLengthInput.value = token.length;
+        tokenHeightInput.value = token.height;
+
+        tokenImageInput.style.display = 'none'; // Hide file input in edit mode
+        addTokenBtn.style.display = 'none';
+        updateTokenBtn.style.display = 'inline-block';
+        cancelEditBtn.style.display = 'inline-block';
+    };
+
+    const exitEditMode = () => {
+        state.editingTokenId = null;
+        state.editingTokenType = null;
+
+        tokenModeHeader.textContent = "3. Add Token";
+        tokenPreview.style.display = 'none';
+        tokenImageInput.value = '';
+        selectedTokenImage = null;
+        tokenWidthInput.value = 1;
+        tokenLengthInput.value = 1;
+        tokenHeightInput.value = 1;
+
+        tokenImageInput.style.display = 'block';
+        addTokenBtn.style.display = 'inline-block';
+        updateTokenBtn.style.display = 'none';
+        cancelEditBtn.style.display = 'none';
+    };
+
+
     const addTokenToLibrary = () => {
         if (!selectedTokenImage || !selectedTokenImage.src) {
             alert('Please select a token image first.');
@@ -441,18 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         state.tokensInLibrary.push(newToken);
-
-        const tokenElement = document.createElement('div');
-        tokenElement.id = newId;
-        tokenElement.className = 'token-in-library';
-        tokenElement.style.backgroundImage = `url(${newToken.imgSrc})`;
-        tokenElement.draggable = true;
-        tokenElement.dataset.tokenId = newId;
-
-        // Find the h4 element and insert the new token before it
-        const libraryHeader = tokenLibrary.querySelector('h4');
-        tokenLibrary.insertBefore(tokenElement, libraryHeader.nextSibling);
-
+        renderLibrary();
 
         // Reset for next token
         tokenImageInput.value = ''; // Clear the file input
@@ -483,6 +575,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    tokenLibrary.addEventListener('click', (e) => {
+        if (e.target.classList.contains('token-in-library')) {
+            const tokenId = e.target.dataset.tokenId;
+            const token = state.tokensInLibrary.find(t => t.id === tokenId);
+            if (token) {
+                enterEditMode(token, 'library');
+            }
+        }
+    });
+
+    updateTokenBtn.addEventListener('click', () => {
+        if (!state.editingTokenId) return;
+
+        const newWidth = parseInt(tokenWidthInput.value, 10) || 1;
+        const newLength = parseInt(tokenLengthInput.value, 10) || 1;
+        const newHeight = parseInt(tokenHeightInput.value, 10) || 0;
+
+        if (state.editingTokenType === 'library') {
+            const token = state.tokensInLibrary.find(t => t.id === state.editingTokenId);
+            if (token) {
+                token.width = newWidth;
+                token.length = newLength;
+                token.height = newHeight;
+            }
+        } else if (state.editingTokenType === 'map') {
+            const token = state.tokensOnMap.find(t => t.instanceId === state.editingTokenId);
+            if (token) {
+                token.width = newWidth;
+                token.length = newLength;
+                token.height = newHeight;
+                renderTokenList(); // Update the list with new dimensions if needed
+            }
+        }
+        render();
+        exitEditMode();
+    });
+
+    cancelEditBtn.addEventListener('click', exitEditMode);
+
     canvas.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
@@ -498,7 +629,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            const { u, v } = canvasToGridCoords(x, y);
+            let { u, v } = canvasToGridCoords(x, y);
+
+            // Adjust position to center the token on the cursor
+            const logicalWidth = originalToken.width / state.mapWidth;
+            const logicalLength = originalToken.length / state.mapLength;
+            u -= logicalWidth / 2;
+            v -= logicalLength / 2;
+
 
             const newMapToken = {
                 ...originalToken,
@@ -539,17 +677,24 @@ document.addEventListener('DOMContentLoaded', () => {
             info.className = 'info';
             const pos = document.createElement('span');
             pos.textContent = `Pos: (${token.u.toFixed(2)}, ${token.v.toFixed(2)})`;
+             const dims = document.createElement('span');
+            dims.textContent = `Size: ${token.width}x${token.length}x${token.height}`;
             const alt = document.createElement('span');
             alt.textContent = `Alt: ${token.altitude}`;
             info.appendChild(pos);
+            info.appendChild(dims);
             info.appendChild(alt);
             item.appendChild(info);
+
+             const controls = document.createElement('div');
+             controls.className = 'on-map-token-controls';
 
             const slider = document.createElement('input');
             slider.type = 'range';
             slider.min = 0;
             slider.max = 100;
             slider.value = token.altitude;
+            slider.title = "Altitude";
             slider.dataset.instanceId = token.instanceId;
             slider.addEventListener('input', (e) => {
                 const targetToken = state.tokensOnMap.find(t => t.instanceId === e.target.dataset.instanceId);
@@ -559,18 +704,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     render();
                 }
             });
-            item.appendChild(slider);
+            controls.appendChild(slider);
+
+            const editButton = document.createElement('button');
+            editButton.textContent = 'Edit';
+            editButton.dataset.instanceId = token.instanceId;
+            editButton.addEventListener('click', (e) => {
+                const instanceId = e.target.dataset.instanceId;
+                const tokenToEdit = state.tokensOnMap.find(t => t.instanceId === instanceId);
+                if (tokenToEdit) {
+                    enterEditMode(tokenToEdit, 'map');
+                }
+            });
+            controls.appendChild(editButton);
+
+
+            item.appendChild(controls);
+
 
             onMapTokenList.appendChild(item);
         });
     };
 
     const snapTokenToGrid = (token) => {
-        // Snap the token's center to the nearest grid intersection
-        const snappedU = (Math.round(token.u * state.mapWidth) / state.mapWidth);
-        const snappedV = (Math.round(token.v * state.mapLength) / state.mapLength);
-        token.u = snappedU;
-        token.v = snappedV;
+        const increment = parseInt(mapIncrementInput.value, 10) || 1;
+
+        // The token's position (u, v) is its top-left corner.
+        // We want to snap its center.
+        const logicalWidth = token.width / state.mapWidth;
+        const logicalLength = token.length / state.mapLength;
+        const centerX = token.u + logicalWidth / 2;
+        const centerY = token.v + logicalLength / 2;
+
+        // Calculate how many 'increments' fit into the total map dimension
+        const numWidthSteps = state.mapWidth / increment;
+        const numLengthSteps = state.mapLength / increment;
+
+        // Find the nearest grid line for the center
+        const snappedCenterX = (Math.round(centerX * numWidthSteps) / numWidthSteps);
+        const snappedCenterY = (Math.round(centerY * numLengthSteps) / numLengthSteps);
+
+        // Convert the snapped center back to a top-left position
+        token.u = snappedCenterX - logicalWidth / 2;
+        token.v = snappedCenterY - logicalLength / 2;
     };
 
     const updateSelectedTokenUI = () => {
@@ -683,16 +859,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
 
-            tokenLibrary.innerHTML = '<h4>Token Library (Drag to Map)</h4>';
-            state.tokensInLibrary.forEach(token => {
-                const tokenElement = document.createElement('div');
-                tokenElement.id = token.id;
-                tokenElement.className = 'token-in-library';
-                tokenElement.style.backgroundImage = `url(${token.imgSrc})`;
-                tokenElement.draggable = true;
-                tokenElement.dataset.tokenId = token.id;
-                tokenLibrary.appendChild(tokenElement);
-            });
+            renderLibrary();
 
             state.tokensOnMap = savedState.tokensOnMap || [];
             const imageLoadPromises = state.tokensOnMap.map(token => {
@@ -787,7 +954,9 @@ document.addEventListener('DOMContentLoaded', () => {
         state.selectedTokenInstanceId = null;
         state.nextTokenInstanceId = 0;
         nextTokenId = 0;
-        tokenLibrary.innerHTML = '<h4>Token Library (Drag to Map)</h4>';
+        renderLibrary();
+        renderTokenList();
+        exitEditMode();
         mapContainer.style.backgroundImage = '';
         sessionNameInput.value = '';
         resetHandles();
@@ -800,4 +969,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateGridSettings();
     tokenUnitsSpan.textContent = mapUnitsSelect.value;
     populateSessionSelector();
+
+    // Expose for debugging/testing
+    window.state = state;
+    window.render = render;
 });

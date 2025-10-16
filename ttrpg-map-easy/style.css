@@ -111,6 +111,20 @@ body {
     width: 50px;
 }
 
+#token-preview {
+    max-width: 50px;
+    max-height: 50px;
+    border: 1px solid #ccc;
+    margin-top: 5px;
+    vertical-align: middle;
+    margin-left: 10px;
+}
+
+#token-buttons button {
+    margin-top: 10px;
+}
+
+
 #token-library {
     background-color: #fff;
     padding: 15px;
@@ -128,7 +142,7 @@ body {
     width: 60px;
     height: 60px;
     border: 2px dashed #ccc;
-    cursor: grab;
+    cursor: pointer; /* Changed to pointer for editing */
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
@@ -168,12 +182,31 @@ body {
 
 .on-map-token-item .info {
     flex-grow: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .on-map-token-item .info span {
     display: block;
     font-size: 0.8em;
     color: #666;
+    white-space: nowrap;
+}
+
+.on-map-token-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+}
+.on-map-token-controls input[type="range"] {
+    width: 60px;
+    margin: 0;
+}
+.on-map-token-controls button {
+    padding: 2px 5px;
+    font-size: 0.8em;
+    width: 100%;
 }
 
 .highlight {

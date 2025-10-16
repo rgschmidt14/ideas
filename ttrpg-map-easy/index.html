@@ -39,12 +39,16 @@
                         <option value="yd">yd</option>
                         <option value="m">m</option>
                     </select>
+                    <br>
+                    <label for="map-increment">Grid Increment:</label>
+                    <input type="number" id="map-increment" value="5" min="1">
                 </div>
                  <div class="controls" id="token-controls">
-                    <h3>3. Manage Tokens</h3>
+                    <h3 id="token-mode-header">3. Add Token</h3>
                     <div>
                         <label for="token-image-input">Token Image:</label>
                         <input type="file" id="token-image-input" accept="image/*">
+                        <img id="token-preview" src="" alt="Token Preview" style="display: none;"/>
                     </div>
                     <div class="token-dims">
                         <label>Size (W, L, H):</label>
@@ -53,7 +57,11 @@
                         <input type="number" id="token-height" value="1" min="0">
                         <span id="token-units">ft</span>
                     </div>
-                    <button id="add-token-btn">Add Token to Library</button>
+                    <div id="token-buttons">
+                       <button id="add-token-btn">Add to Library</button>
+                       <button id="update-token-btn" style="display: none;">Update Token</button>
+                       <button id="cancel-edit-btn" style="display: none;">Cancel</button>
+                    </div>
                 </div>
                  <div id="selected-token-controls" class="controls" style="display: none;">
                     <h4>Selected Token</h4>
