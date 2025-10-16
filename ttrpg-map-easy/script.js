@@ -33,11 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionNameInput = document.getElementById('session-name-input');
     const saveSessionBtn = document.getElementById('save-session-btn');
     const loadSessionBtn = document.getElementById('load-session-btn');
+    const updateSessionBtn = document.getElementById('update-session-btn');
     const deleteSessionBtn = document.getElementById('delete-session-btn');
     const newSessionBtn = document.getElementById('new-session-btn');
+    const gridOpacitySlider = document.getElementById('grid-opacity-slider');
+    const gridOpacityValue = document.getElementById('grid-opacity-value');
+
 
     // --- Application State ---
     const state = {
+        gridOpacity: 0.5,
         viewMode: 'top-down', // 'top-down' or 'perspective'
         mapWidth: 30,
         mapLength: 20,
@@ -49,9 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
         selectedTokenInstanceId: null,
         draggingTokenInstanceId: null,
         dragOffset: { u: 0, v: 0 },
+        pixelDragOffset: { x: 0, y: 0 }, // For new, more accurate dragging
         nextTokenInstanceId: 0,
         editingTokenId: null, // Can be library token ID or map token instance ID
-        editingTokenType: null // 'library' or 'map'
+        editingTokenType: null, // 'library' or 'map'
+        bgImageIsAnimated: false,
+        animationFrameId: null,
     };
     let isThrottled = false;
     // --- Main Render Function ---
@@ -63,12 +71,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.viewMode === 'perspective') {
             drawHorizon();
         }
-        renderTokenList();
+        // The token list only needs to be re-rendered on state changes, not every frame.
+        // We'll call it from places where the state actually changes.
     };
 
     // --- Drawing Functions ---
     const drawGrid = () => {
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.strokeStyle = `rgba(0, 0, 0, ${state.gridOpacity})`;
         ctx.lineWidth = 1;
         const increment = parseInt(mapIncrementInput.value, 10) || 1;
 
@@ -245,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const drawHorizon = () => {
         const vp = getVanishPoint();
         if (vp.y > 0 && vp.y < canvas.height) {
-            ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)';
+            ctx.strokeStyle = `rgba(0, 255, 255, ${state.gridOpacity * 1.6})`; // Make horizon slightly more visible
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(0, vp.y);
@@ -305,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateGridSettings = () => {
         state.mapWidth = parseInt(mapWidthInput.value, 10) || 1;
         state.mapLength = parseInt(mapLengthInput.value, 10) || 1;
-        render();
+        requestRender();
     };
 
     const resizeCanvas = () => {
@@ -313,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvas.width = width;
         canvas.height = height;
         resetHandles();
-        render();
+        requestRender();
     };
 
     // --- Coordinate Transformation ---
@@ -473,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!isThrottled) {
                 isThrottled = true;
                 setTimeout(() => {
-                    render();
+                    requestRender();
                     isThrottled = false;
                 }, 1000 / 30); // throttle to 30fps
             }
@@ -486,11 +495,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            const { u, v } = canvasToGridCoords(x, y);
-            token.u = u - state.dragOffset.u;
-            token.v = v - state.dragOffset.v;
+            // The new center of the token's base should be at the mouse position minus the pixel offset.
+            const newCenterBaseX = x - state.pixelDragOffset.x;
+            const newCenterBaseY = y - state.pixelDragOffset.y;
 
-            render();
+            // Convert this target canvas point for the base center into logical (u, v) for the base center.
+            const { u: center_u, v: center_v_true } = canvasToGridCoords(newCenterBaseX, newCenterBaseY);
+
+            // The token's stored position is its top-left corner, so adjust from the center.
+            const logicalWidth = token.width / state.mapWidth;
+            const logicalLength = token.length / state.mapLength;
+            token.u = center_u - (logicalWidth / 2);
+            token.v = center_v_true - (logicalLength / 2);
+
+
+            requestRender();
         }
     });
 
@@ -500,7 +519,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const { instanceId } = item.dataset;
         state.selectedTokenInstanceId = instanceId;
-        render(); // Re-render to show canvas selection outline immediately
+        updateSelectedTokenUI(); // Update the slider controls
+        requestRender(); // Re-render to show canvas selection outline immediately
 
         // Temporary visual highlight on the list item
         item.classList.add('highlight');
@@ -516,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.draggingHandle) {
             state.draggingHandle = null;
             mapContainer.style.cursor = 'default';
-            render(); // Final render after dragging handle
+            requestRender(); // Final render after dragging handle
         } else if (state.draggingTokenInstanceId) {
             const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
             if (token) {
@@ -524,13 +544,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             state.draggingTokenInstanceId = null;
             mapContainer.style.cursor = 'default';
-            render();
+            requestRender();
         }
     });
 
     bgImageInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (file && file.type.startsWith('image/')) {
+            state.bgImageIsAnimated = file.type === 'image/gif';
             const reader = new FileReader();
             reader.onload = (e) => {
                 const img = new Image();
@@ -541,6 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     mapContainer.style.width = `${img.width * scale}px`;
                     mapContainer.style.height = `${img.height * scale}px`;
                     resizeCanvas();
+                    requestRender(); // Use the new render loop
                 };
                 img.src = e.target.result;
             };
@@ -619,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const newToken = {
             id: newId,
             imgSrc: selectedTokenImage.src,
+            isAnimated: selectedTokenImage.isAnimated,
             width: parseInt(tokenWidthInput.value, 10) || 1,
             length: parseInt(tokenLengthInput.value, 10) || 1,
             height: parseInt(tokenHeightInput.value, 10) || 0,
@@ -626,10 +649,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.tokensInLibrary.push(newToken);
         renderLibrary();
+        requestRender(); // A new animated token in the library could require the loop
 
         // Reset for next token
-        tokenImageInput.value = ''; // Clear the file input
-        selectedTokenImage = null; // Clear the selected image object
+        tokenImageInput.value = '';
+        selectedTokenImage = null;
+        tokenPreview.style.display = 'none';
     };
 
     tokenImageInput.addEventListener('change', (event) => {
@@ -637,7 +662,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (file && file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = (e) => {
-                selectedTokenImage = { src: e.target.result };
+                selectedTokenImage = {
+                    src: e.target.result,
+                    isAnimated: file.type === 'image/gif'
+                };
+                tokenPreview.src = e.target.result;
+                tokenPreview.style.display = 'block';
             };
             reader.readAsDataURL(file);
         }
@@ -647,6 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     mapUnitsSelect.addEventListener('change', () => {
         tokenUnitsSpan.textContent = mapUnitsSelect.value;
+        renderTokenList(); // Update dimensions in list
     });
 
     tokenLibrary.addEventListener('dragstart', (e) => {
@@ -679,6 +710,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 token.width = newWidth;
                 token.length = newLength;
                 token.height = newHeight;
+                // NEW: Update all instances of this token on the map
+                state.tokensOnMap.forEach(mapToken => {
+                    if (mapToken.id === state.editingTokenId) {
+                        mapToken.width = newWidth;
+                        mapToken.length = newLength;
+                        mapToken.height = newHeight;
+                    }
+                });
             }
         } else if (state.editingTokenType === 'map') {
             const token = state.tokensOnMap.find(t => t.instanceId === state.editingTokenId);
@@ -688,7 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 token.height = newHeight;
             }
         }
-        render();
+        requestRender();
         renderTokenList(); // Re-render the list to show all changes
         exitEditMode();
     });
@@ -726,6 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 v, // logical y (0-1)
                 altitude: 0,
                 img: null,
+                isAnimated: originalToken.isAnimated || false,
             };
 
             // Preload the image for rendering
@@ -733,7 +773,8 @@ document.addEventListener('DOMContentLoaded', () => {
             img.onload = () => {
                 newMapToken.img = img;
                 state.tokensOnMap.push(newMapToken); // Add to state only when loaded
-                render(); // Render now that the token is fully ready
+                renderTokenList(); // Update the list now that the token is added
+                requestRender(); // Use the new render loop
             };
             img.src = newMapToken.imgSrc;
         }
@@ -766,7 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const targetToken = state.tokensOnMap.find(t => t.instanceId === token.instanceId);
                 if (targetToken) {
                     targetToken.u = parseFloat(e.target.value);
-                    render();
+                    requestRender();
                 }
             });
             const vInput = document.createElement('input');
@@ -778,7 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const targetToken = state.tokensOnMap.find(t => t.instanceId === token.instanceId);
                 if (targetToken) {
                     targetToken.v = parseFloat(e.target.value);
-                    render();
+                    requestRender();
                 }
             });
 
@@ -801,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  const targetToken = state.tokensOnMap.find(t => t.instanceId === e.target.dataset.instanceId);
                  if (targetToken) {
                     targetToken.altitude = parseInt(e.target.value, 10);
-                    render();
+                    requestRender();
                  }
             });
 
@@ -843,7 +884,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     state.selectedTokenInstanceId = null;
                     updateSelectedTokenUI();
                 }
-                render();
+                requestRender();
                 renderTokenList(); // Re-render the list itself
             });
             controls.appendChild(deleteButton);
@@ -911,18 +952,28 @@ document.addEventListener('DOMContentLoaded', () => {
             state.draggingTokenInstanceId = clickedToken.instanceId;
             state.selectedTokenInstanceId = clickedToken.instanceId;
 
-            // Use the original, correct drag offset calculation
-            let { u, v } = canvasToGridCoords(x, y);
-            state.dragOffset = {
-                u: u - clickedToken.u,
-                v: v - clickedToken.v
+            // Calculate the token's base center in canvas coordinates.
+            const logicalWidth = clickedToken.width / state.mapWidth;
+            const logicalLength = clickedToken.length / state.mapLength;
+            const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
+            // To get the v for the center, we need to convert from true v to screen v
+            const true_v_center = clickedToken.v + logicalLength / 2;
+            const screen_v_center = Math.pow(true_v_center, perspectiveFactor);
+            const u_center = clickedToken.u + logicalWidth / 2;
+            const centerBasePoint = gridToCanvasCoords(u_center, screen_v_center);
+
+            // Calculate and store the pixel offset from the click to the base center.
+            state.pixelDragOffset = {
+                x: x - centerBasePoint.x,
+                y: y - centerBasePoint.y
             };
+
             mapContainer.style.cursor = 'grabbing';
         } else {
             state.selectedTokenInstanceId = null;
         }
         updateSelectedTokenUI();
-        render();
+        requestRender();
     });
 
     tokenAltitudeSlider.addEventListener('input', (e) => {
@@ -931,7 +982,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (token) {
             token.altitude = parseInt(e.target.value, 10);
             altitudeValueSpan.textContent = token.altitude;
-            render();
+            requestRender();
         }
     });
 
@@ -939,15 +990,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const getAppState = () => {
         // We can't save the actual `img` objects, so we just save their src
         const simplifiedTokensOnMap = state.tokensOnMap.map(t => {
-            const tokenCopy = {...t};
-            if (tokenCopy.img) {
-                tokenCopy.imgSrc = tokenCopy.img.src;
-            }
-            delete tokenCopy.img;
-            return tokenCopy;
+            const { img, ...rest } = t; // Exclude the img object
+            return rest;
         });
 
         return {
+            bgImageIsAnimated: state.bgImageIsAnimated,
+            gridOpacity: state.gridOpacity,
             mapWidth: state.mapWidth,
             mapLength: state.mapLength,
             mapUnits: mapUnitsSelect.value,
@@ -963,36 +1012,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const loadAppState = (savedState) => {
         return new Promise((resolve) => {
-            newSessionBtn.click();
+            newSessionBtn.click(); // Reset current state
 
+            // Immediately load non-async data
             mapWidthInput.value = savedState.mapWidth || 30;
             mapLengthInput.value = savedState.mapLength || 20;
             mapUnitsSelect.value = savedState.mapUnits || 'ft';
-            state.handleTLPos = savedState.handleTLPos || { x: 0, y: 0 };
-            state.handleTRPos = savedState.handleTRPos || { x: canvas.width, y: 0 };
+            state.gridOpacity = savedState.gridOpacity || 0.5;
+            gridOpacitySlider.value = state.gridOpacity;
+            gridOpacityValue.textContent = state.gridOpacity;
             state.tokensInLibrary = savedState.tokensInLibrary || [];
             nextTokenId = savedState.nextTokenId || 0;
             state.nextTokenInstanceId = savedState.nextTokenInstanceId || 0;
-
-            mapContainer.style.backgroundImage = savedState.bgImage || '';
-            const bgUrlMatch = (savedState.bgImage || '').match(/url\("?(.*?)"?\)/);
-            if (bgUrlMatch) {
-                 const img = new Image();
-                 img.onload = () => {
-                    const containerMaxWidth = mapContainer.parentElement.clientWidth;
-                    const scale = Math.min(1, containerMaxWidth / img.width);
-                    mapContainer.style.width = `${img.width * scale}px`;
-                    mapContainer.style.height = `${img.height * scale}px`;
-                    resizeCanvas();
-                 };
-                 img.src = bgUrlMatch[1];
-            } else {
-                 resizeCanvas();
-            }
-
-
             renderLibrary();
 
+            // --- Promise-based Loading ---
+
+            // 1. Promise for background image loading and canvas resizing
+            const bgPromise = new Promise(bgResolve => {
+                mapContainer.style.backgroundImage = savedState.bgImage || '';
+                state.bgImageIsAnimated = savedState.bgImageIsAnimated || false;
+                const bgUrlMatch = (savedState.bgImage || '').match(/url\("?(.*?)"?\)/);
+                if (bgUrlMatch) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const containerMaxWidth = mapContainer.parentElement.clientWidth;
+                        const scale = Math.min(1, containerMaxWidth / img.width);
+                        mapContainer.style.width = `${img.width * scale}px`;
+                        mapContainer.style.height = `${img.height * scale}px`;
+                        resizeCanvas(); // This calls resetHandles(), which is why we apply loaded handles later
+                        bgResolve();
+                    };
+                    img.onerror = () => {
+                        console.error("Failed to load background image:", bgUrlMatch[1]);
+                        resizeCanvas(); // Still resize canvas to default
+                        bgResolve();
+                    };
+                    img.src = bgUrlMatch[1];
+                } else {
+                    resizeCanvas(); // Resize even if there's no background image
+                    bgResolve();
+                }
+            });
+
+            // 2. Promises for loading token images
             state.tokensOnMap = savedState.tokensOnMap || [];
             const imageLoadPromises = state.tokensOnMap.map(token => {
                 return new Promise((imgResolve) => {
@@ -1008,21 +1071,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         img.src = token.imgSrc;
                     } else {
-                        imgResolve();
+                        imgResolve(); // Resolve if there's no image src
                     }
                 });
             });
 
-            Promise.all(imageLoadPromises).then(() => {
+            // 3. Wait for all assets to load, then apply final state
+            Promise.all([bgPromise, ...imageLoadPromises]).then(() => {
+                // Now that canvas is sized correctly, apply the handle positions
+                state.handleTLPos = savedState.handleTLPos || { x: 0, y: 0 };
+                // Default to the *current* canvas width if not in save state
+                state.handleTRPos = savedState.handleTRPos || { x: canvas.width, y: 0 };
+
                 updateHandles();
                 updateGridSettings();
                 checkViewMode();
-                render();
-                // This was missing: update the handle elements after loading
-                handleTL.style.left = `${state.handleTLPos.x}px`;
-                handleTL.style.top = `${state.handleTLPos.y}px`;
-                handleTR.style.left = `${state.handleTRPos.x}px`;
-                handleTR.style.top = `${state.handleTRPos.y}px`;
+                renderTokenList(); // Render the list once after loading
+                requestRender();   // Start the render loop
                 resolve();
             });
         });
@@ -1047,9 +1112,30 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const sessionKey = `ttrpg-map-session-${name}`;
+        if (localStorage.getItem(sessionKey)) {
+            if (!confirm(`A session named "${name}" already exists. Overwrite it?`)) {
+                return;
+            }
+        }
         localStorage.setItem(sessionKey, JSON.stringify(getAppState()));
         sessionNameInput.value = '';
         populateSessionSelector();
+        // Select the newly saved session
+        sessionSelect.value = sessionKey;
+    });
+
+    updateSessionBtn.addEventListener('click', () => {
+        const sessionKey = sessionSelect.value;
+        if (!sessionKey) {
+            alert('Please select a session to update.');
+            return;
+        }
+        const name = sessionKey.replace('ttrpg-map-session-', '');
+        if (!confirm(`Are you sure you want to overwrite the session "${name}" with the current state?`)) {
+            return;
+        }
+        localStorage.setItem(sessionKey, JSON.stringify(getAppState()));
+        alert(`Session "${name}" updated successfully.`);
     });
 
     loadSessionBtn.addEventListener('click', () => {
@@ -1090,19 +1176,60 @@ document.addEventListener('DOMContentLoaded', () => {
         renderTokenList();
         exitEditMode();
         mapContainer.style.backgroundImage = '';
+        state.bgImageIsAnimated = false;
         sessionNameInput.value = '';
+        gridOpacitySlider.value = 0.5;
+        gridOpacityValue.textContent = '0.5';
+        state.gridOpacity = 0.5;
         resetHandles();
         checkViewMode();
         updateGridSettings();
+        requestRender();
     });
+
+    gridOpacitySlider.addEventListener('input', (e) => {
+        const opacity = parseFloat(e.target.value);
+        state.gridOpacity = opacity;
+        gridOpacityValue.textContent = opacity.toFixed(2);
+        requestRender();
+    });
+
+    // --- Animation Loop ---
+    const hasAnimatedElements = () => {
+        if (state.bgImageIsAnimated) return true;
+        return state.tokensOnMap.some(t => t.isAnimated);
+    };
+
+    const animationLoop = () => {
+        render();
+        // Keep the loop going only if there are animated elements to draw
+        if (hasAnimatedElements()) {
+            state.animationFrameId = requestAnimationFrame(animationLoop);
+        } else {
+            state.animationFrameId = null; // Stop the loop
+        }
+    };
+
+    const requestRender = () => {
+        // If the animation loop isn't running, start it.
+        // Otherwise, it will just continue on its own.
+        if (!state.animationFrameId) {
+            state.animationFrameId = requestAnimationFrame(animationLoop);
+        }
+    };
+
 
     // --- Initial Setup ---
     resizeCanvas();
     updateGridSettings();
     tokenUnitsSpan.textContent = mapUnitsSelect.value;
+    gridOpacityValue.textContent = gridOpacitySlider.value;
+    state.gridOpacity = parseFloat(gridOpacitySlider.value);
     populateSessionSelector();
+    renderTokenList();
+    requestRender(); // Initial render
 
     // Expose for debugging/testing
     window.state = state;
-    window.render = render;
+    window.render = requestRender; // Expose the new render request function
 });

@@ -17,19 +17,26 @@
                     <select id="session-select"></select>
                     <div class="session-buttons">
                         <button id="load-session-btn">Load</button>
+                        <button id="update-session-btn" title="Overwrite the selected session with the current map state.">Update Selected</button>
                         <button id="delete-session-btn">Delete</button>
                     </div>
                     <hr>
                     <input type="text" id="session-name-input" placeholder="New Session Name">
-                    <button id="save-session-btn">Save</button>
-                    <button id="new-session-btn">New</button>
+                    <button id="save-session-btn">Save As New</button>
+                    <button id="new-session-btn">New Blank</button>
                 </div>
                 <div class="controls">
                     <h3>1. Load Background Image</h3>
                     <input type="file" id="bg-image-input" accept="image/*">
                 </div>
                  <div class="controls">
-                    <h3>2. Define Map Dimensions</h3>
+                    <h3>Grid & View</h3>
+                    <label for="grid-opacity-slider">Grid Opacity:</label>
+                    <input type="range" id="grid-opacity-slider" min="0" max="1" step="0.05" value="0.5">
+                    <span id="grid-opacity-value">0.5</span>
+                 </div>
+                 <div class="controls">
+                    <h3>2. Map Dimensions</h3>
                     <label for="map-width">Width:</label>
                     <input type="number" id="map-width" value="30">
                     <label for="map-length">Depth:</label>

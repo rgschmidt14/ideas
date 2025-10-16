@@ -39,7 +39,7 @@ body {
 .session-controls .session-buttons {
     display: flex;
     justify-content: space-between;
-    gap: 10px;
+    gap: 5px; /* Tighter gap for more buttons */
 }
 
 .session-controls button {
@@ -51,7 +51,11 @@ body {
     padding: 15px;
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    margin-bottom: 20px;
+    margin-bottom: 15px; /* Reduced margin */
+}
+
+.controls h3 {
+    margin-top: 0;
 }
 
 #map-container {
