@@ -22,10 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
         handleTLPos: { x: 0, y: 0 },
         handleTRPos: { x: 0, y: 0 }, // x will be updated to canvas width on resize
         draggingHandle: null,
+        draggingToken: null,
         tokensInLibrary: [],
         tokensOnMap: [],
         selectedTokenInstanceId: null,
     };
+    window.state = state; // Expose for debugging/testing
     let nextTokenInstanceId = 0;
 
     // --- Main Render Function ---
@@ -35,11 +37,14 @@ document.addEventListener('DOMContentLoaded', () => {
         drawTokens();
         drawSelectionOutline();
     };
+    window.render = render; // Expose for debugging/testing
 
     // --- Drawing Functions ---
     const drawGrid = () => {
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
         ctx.lineWidth = 1;
+        ctx.shadowColor = 'transparent'; // Reset shadow for grid lines
+        ctx.shadowBlur = 0;
 
         if (state.viewMode === 'top-down') {
             const cellWidth = canvas.width / state.mapWidth;
@@ -58,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else { // Perspective
             const { mapWidth, mapLength } = state;
+            // Draw vertical grid lines
             for (let i = 1; i < mapWidth; i++) {
                 const u = i / mapWidth;
                 const p1 = gridToCanvasCoords(u, 0);
@@ -67,6 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.lineTo(p2.x, p2.y);
                 ctx.stroke();
             }
+            // Draw horizontal grid lines
             for (let i = 1; i < mapLength; i++) {
                 const v = i / mapLength;
                 const p1 = gridToCanvasCoords(0, v);
@@ -75,6 +82,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.moveTo(p1.x, p1.y);
                 ctx.lineTo(p2.x, p2.y);
                 ctx.stroke();
+            }
+
+            // Draw Horizon Line
+            // The horizon is determined by the vertical position of the top handles.
+            const horizonY = state.handleTLPos.y;
+            if (horizonY > 0 && horizonY < canvas.height) { // Only draw if on-screen
+                ctx.save();
+                ctx.strokeStyle = 'cyan';
+                ctx.lineWidth = 1;
+                ctx.shadowColor = 'cyan';
+                ctx.shadowBlur = 5;
+                ctx.beginPath();
+                ctx.moveTo(0, horizonY);
+                ctx.lineTo(canvas.width, horizonY);
+                ctx.stroke();
+                ctx.restore();
             }
         }
     };
@@ -93,12 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const h = (canvas.height / state.mapLength) * token.length;
                 ctx.drawImage(token.img, p.x, p.y, w, h);
             } else { // Perspective
-                // 1. Draw shadow
+                // 1. Calculate corners for shadow and token base
                 const p1 = gridToCanvasCoords(token.u, token.v);
                 const p2 = gridToCanvasCoords(token.u + logicalWidth, token.v);
                 const p3 = gridToCanvasCoords(token.u + logicalWidth, token.v + logicalLength);
                 const p4 = gridToCanvasCoords(token.u, token.v + logicalLength);
 
+                // 2. Draw shadow on the ground plane
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
                 ctx.beginPath();
                 ctx.moveTo(p1.x, p1.y);
@@ -108,22 +132,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.closePath();
                 ctx.fill();
 
-                // 2. Draw token image
-                const bottomCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v + logicalLength);
-                const topCenter = gridToCanvasCoords(token.u + logicalWidth / 2, token.v);
+                // 3. Draw token image, potentially elevated
+                const canvasTokenWidth = p2.x - p1.x;
 
-                const perspectiveHeight = bottomCenter.y - topCenter.y;
-                const scale = (perspectiveHeight / token.length) / (canvas.height / state.mapLength);
+                // Determine the scaling factor based on the token's depth (v coordinate).
+                // A token's visual height on screen is dependent on its logical 'length'
+                // and its position in the perspective grid.
+                const p_v_start = gridToCanvasCoords(token.u, token.v);
+                const p_v_end = gridToCanvasCoords(token.u, token.v + logicalLength);
+                const perspectiveCellHeight = p_v_end.y - p_v_start.y;
 
-                const imgHeight = token.img.height * scale * token.height;
-                const imgWidth = token.img.width * scale * token.width;
+                // The base height of a cell in the front row.
+                const logicalPixelHeight = canvas.height / state.mapLength;
 
-                const verticalOffset = altitude * scale * 10; // 10 is an arbitrary multiplier for altitude effect
+                // The scale is the ratio of the cell's perspective height to its base height.
+                const scale = perspectiveCellHeight / (logicalPixelHeight * token.length);
 
+                // The final image height is its logical height, adjusted by the perspective scale.
+                const imgHeight = token.height * logicalPixelHeight * scale;
+                const imgWidth = canvasTokenWidth;
+
+                // Altitude is also scaled to ensure it looks correct in perspective.
+                const verticalOffset = token.altitude * logicalPixelHeight * scale;
+
+                // Draw the image anchored to its base, adjusted for altitude.
                 ctx.drawImage(
                     token.img,
-                    bottomCenter.x - imgWidth / 2,
-                    bottomCenter.y - imgHeight - verticalOffset,
+                    p1.x,
+                    p4.y - imgHeight - verticalOffset,
                     imgWidth,
                     imgHeight
                 );
@@ -200,24 +236,31 @@ document.addEventListener('DOMContentLoaded', () => {
         return { x, y };
     };
 
-    // Inverse of the above. Not a perfect inverse, but a good approximation.
+    // Inverse of gridToCanvasCoords. Approximates the logical (u, v) coordinates
+    // from a pixel position on the canvas. This is key for interactivity.
     const canvasToGridCoords = (x, y) => {
         const { handleTLPos, handleTRPos } = state;
         const bl = { x: 0, y: canvas.height };
         const br = { x: canvas.width, y: canvas.height };
 
-        // Approximate v (vertical position)
+        // This is a simplified inverse transformation (bilinear interpolation).
+        // It's not perfect, but works well for this application.
+
+        // Approximate v (depth) by finding the proportional distance between the
+        // top and bottom edges of the grid at the given canvas x-coordinate.
         const leftY = handleTLPos.y + (bl.y - handleTLPos.y - (handleTLPos.y - handleTRPos.y) * (x / canvas.width));
         const rightY = handleTRPos.y + (br.y - handleTRPos.y);
         const yAtX = leftY + (rightY - leftY) * (x / canvas.width);
         const v = y / yAtX;
 
-        // Approximate u (horizontal position)
+        // Approximate u (horizontal) by finding the proportional distance between the
+        // left and right edges of the grid at the calculated canvas y-coordinate (via v).
         const topX = handleTLPos.x + (handleTRPos.x - handleTLPos.x) * v;
         const botX = bl.x + (br.x - bl.x) * v;
         const u = (x - topX) / (botX - topX);
 
-        return { u: Math.max(0, Math.min(1, u)), v: Math.max(0, Math.min(1, v)) };
+        // Allow dragging beyond the grid by not clamping the values
+        return { u, v };
     };
 
     const checkViewMode = () => {
@@ -241,32 +284,64 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.addEventListener('mouseup', () => {
-        state.draggingHandle = null;
-        mapContainer.style.cursor = 'default';
+        // If we were dragging a handle, finalize the state and redraw
+        if (state.draggingHandle) {
+            state.draggingHandle = null;
+            mapContainer.style.cursor = 'default';
+            checkViewMode();
+            render(); // Redraw the entire canvas once the drag is complete
+        }
+        // If we were dragging a token, release it
+        if (state.draggingToken) {
+            state.draggingToken = null;
+            render();
+        }
     });
 
     document.addEventListener('mousemove', (e) => {
-        if (!state.draggingHandle) return;
+        // Handle grid handle dragging
+        if (state.draggingHandle) {
+            const rect = mapContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
 
-        const rect = mapContainer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+            const clampedX = Math.max(0, Math.min(x, rect.width));
+            const clampedY = Math.max(0, Math.min(y, rect.height));
 
-        // Clamp coordinates to stay within canvas bounds
-        const clampedX = Math.max(0, Math.min(x, rect.width));
-        const clampedY = Math.max(0, Math.min(y, rect.height));
-
-        if (state.draggingHandle.id === 'handle-tl') {
-            state.handleTLPos.x = clampedX;
+            if (state.draggingHandle.id === 'handle-tl') {
+                state.handleTLPos.x = clampedX;
+            } else {
+                state.handleTRPos.x = clampedX;
+            }
             state.handleTLPos.y = clampedY;
-        } else {
-            state.handleTRPos.x = clampedX;
             state.handleTRPos.y = clampedY;
+            updateHandles();
         }
 
-        checkViewMode();
-        updateHandles();
-        drawGrid();
+        // Handle token dragging
+        if (state.draggingToken) {
+            const rect = mapContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const { u, v } = canvasToGridCoords(x, y);
+            state.draggingToken.u = u;
+            state.draggingToken.v = v;
+            render(); // Re-render the scene as the token moves
+        }
+    });
+
+    const resetTokenBtn = document.getElementById('reset-token-btn');
+    resetTokenBtn.addEventListener('click', () => {
+        if (!state.selectedTokenInstanceId) return;
+        const token = state.tokensOnMap.find(t => t.instanceId === state.selectedTokenInstanceId);
+        if (token) {
+            // Reset position to the center of the front row
+            token.u = 0.5 - (token.width / state.mapWidth / 2);
+            token.v = 1.0 - (token.length / state.mapLength);
+            token.altitude = 0;
+            updateSelectedTokenUI();
+            render();
+        }
     });
 
     bgImageInput.addEventListener('change', (event) => {
@@ -398,28 +473,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedTokenControls = document.getElementById('selected-token-controls');
     const tokenAltitudeSlider = document.getElementById('token-altitude');
     const altitudeValueSpan = document.getElementById('altitude-value');
+    const selectedTokenWidthInput = document.getElementById('selected-token-width');
+    const selectedTokenLengthInput = document.getElementById('selected-token-length');
+    const selectedTokenHeightInput = document.getElementById('selected-token-height');
+    const selectedTokenUnitsSpan = document.getElementById('selected-token-units');
+
 
     // --- Functions ---
     const updateSelectedTokenUI = () => {
         const token = state.tokensOnMap.find(t => t.instanceId === state.selectedTokenInstanceId);
-        if (token && state.viewMode === 'perspective') {
+        if (token) {
             selectedTokenControls.style.display = 'block';
             const currentAltitude = token.altitude || 0;
             tokenAltitudeSlider.value = currentAltitude;
             altitudeValueSpan.textContent = currentAltitude;
+
+            selectedTokenWidthInput.value = token.width;
+            selectedTokenLengthInput.value = token.length;
+            selectedTokenHeightInput.value = token.height;
+            selectedTokenUnitsSpan.textContent = mapUnitsSelect.value;
         } else {
             selectedTokenControls.style.display = 'none';
         }
     };
 
+    const setupSelectedTokenListeners = () => {
+        const inputs = [selectedTokenWidthInput, selectedTokenLengthInput, selectedTokenHeightInput];
+        const properties = ['width', 'length', 'height'];
+
+        inputs.forEach((input, index) => {
+            input.addEventListener('input', (e) => {
+                if (!state.selectedTokenInstanceId) return;
+                const token = state.tokensOnMap.find(t => t.instanceId === state.selectedTokenInstanceId);
+                if (token) {
+                    token[properties[index]] = parseInt(e.target.value, 10) || 1;
+                    render();
+                }
+            });
+        });
+    };
+
     // --- Event Listeners ---
-    canvas.addEventListener('click', (e) => {
+    canvas.addEventListener('mousedown', (e) => {
         const rect = mapContainer.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const { u, v } = canvasToGridCoords(x, y);
 
-        // Find the topmost token at the clicked location
+        // Find the topmost token at the clicked location to start dragging
         const clickedToken = [...state.tokensOnMap]
             .reverse() // search from top-most rendered token
             .find(token => {
@@ -429,7 +530,14 @@ document.addEventListener('DOMContentLoaded', () => {
                        v >= token.v && v <= token.v + logicalLength;
             });
 
-        state.selectedTokenInstanceId = clickedToken ? clickedToken.instanceId : null;
+        if (clickedToken) {
+            state.draggingToken = clickedToken;
+            // Also select it
+            state.selectedTokenInstanceId = clickedToken.instanceId;
+        } else {
+            // If no token is clicked, deselect any currently selected token
+            state.selectedTokenInstanceId = null;
+        }
         updateSelectedTokenUI();
         render();
     });
@@ -567,4 +675,5 @@ document.addEventListener('DOMContentLoaded', () => {
     updateGridSettings();
     tokenUnitsSpan.textContent = mapUnitsSelect.value;
     populateSessionSelector();
+    setupSelectedTokenListeners();
 });
