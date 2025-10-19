@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const newSessionBtn = document.getElementById('new-session-btn');
     const gridOpacitySlider = document.getElementById('grid-opacity-slider');
     const gridOpacityValue = document.getElementById('grid-opacity-value');
+    const gridLockToggle = document.getElementById('grid-lock-toggle');
     const mainLayout = document.querySelector('.main-layout');
     const hamburgerBtn = document.getElementById('hamburger-btn');
     const fullscreenBtn = document.getElementById('fullscreen-btn');
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Application State ---
     const state = {
+        gridIsLocked: false,
         gridOpacity: 0.5,
         viewMode: 'top-down', // 'top-down' or 'perspective'
         mapWidth: 30,
@@ -169,13 +171,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const h = (canvas.height / state.mapLength) * token.length;
                 ctx.drawImage(token.img, p.x - w/2, p.y - h/2, w, h);
             } else { // Perspective
-                // 1. Draw shadow
-                // We use the screen-space V values to get the correct perspective shape
                 const p1 = gridToCanvasCoords(token.u, screenV);
                 const p2 = gridToCanvasCoords(token.u + logicalWidth, screenV);
                 const p3 = gridToCanvasCoords(token.u + logicalWidth, screenVEnd);
                 const p4 = gridToCanvasCoords(token.u, screenVEnd);
 
+                // 1. Draw shadow
+                // The shadow should be the same shape as the token's base
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
                 ctx.beginPath();
                 ctx.moveTo(p1.x, p1.y);
@@ -185,49 +187,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 ctx.closePath();
                 ctx.fill();
 
-                // 2. Draw token image, standing straight up
-                const pBottomCenter = { x: (p3.x + p4.x) / 2, y: (p3.y + p4.y) / 2 };
-                const pTopCenter = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+                // 2. Draw token image
+                const pBottomLeft = p4;
+                const pBottomRight = p3;
 
-                // The token's visual width is the width of its base on screen
-                const perspectiveWidth = p2.x - p1.x;
+                const finalWidth = pBottomRight.x - pBottomLeft.x;
 
-                // The token's visual "length" on screen is the distance between the
-                // front and back of its base. This is our basis for height.
-                const perspectiveLength = pBottomCenter.y - pTopCenter.y;
-
-                const finalWidth = perspectiveWidth;
-
-                // The final height is its aspect ratio (height/width) times the visual width on screen.
-                // This preserves the token's appearance regardless of perspective depth.
-                let finalHeight = finalWidth; // Default to a square aspect ratio
+                let finalHeight = finalWidth; // Default to square aspect ratio
                 if (token.width > 0) {
                     finalHeight = finalWidth * (token.height / token.width);
                 }
 
-                // Altitude offset must also be scaled by perspective.
-                // We calculate the on-screen size of a single map unit of length at the token's depth.
-                let onScreenUnitLength = 0;
-                if (token.length > 0) {
-                    onScreenUnitLength = perspectiveLength / token.length;
-                }
+                const onScreenUnitLength = (pBottomLeft.y - p1.y) / token.length;
                 const altitudeOffset = token.altitude * onScreenUnitLength;
 
 
                 ctx.drawImage(
                     token.img,
-                    pBottomCenter.x - finalWidth / 2,
-                    pBottomCenter.y - finalHeight - altitudeOffset,
+                    pBottomLeft.x,
+                    pBottomLeft.y - finalHeight - altitudeOffset,
                     finalWidth,
                     finalHeight
                 );
 
                 // 3. Add overlay if token is "underground"
                 if (token.altitude < 0) {
-                    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)'; // Same as shadow color
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
                     ctx.fillRect(
-                        pBottomCenter.x - finalWidth / 2,
-                        pBottomCenter.y - finalHeight - altitudeOffset,
+                        pBottomLeft.x,
+                        pBottomLeft.y - finalHeight - altitudeOffset,
                         finalWidth,
                         finalHeight
                     );
@@ -252,12 +240,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const det = A1 * B2 - A2 * B1;
         if (det === 0) {
-            return { x: canvas.width / 2, y: -canvas.height, v_frac: -1 }; // Parallel lines, effectively infinite vanishing point
+            return { x: canvas.width / 2, y: -canvas.height }; // Parallel lines, effectively infinite vanishing point
         } else {
             const x = (B2 * C1 - B1 * C2) / det;
             const y = (A1 * C2 - A2 * C1) / det;
-            const v_frac = y / (y - canvas.height);
-            return { x, y, v_frac };
+            return { x, y };
         }
     };
     const drawHorizon = () => {
@@ -364,37 +351,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const { handleTLPos, handleTRPos } = state;
         const vp = getVanishPoint();
 
-        // Avoid division by zero if click is on the horizon
-        if (Math.abs(y - vp.y) < 1) {
-           const u = x / canvas.width; // Best guess on the horizon
-           let v_screen = (y - vp.y) / (canvas.height - vp.y);
-           v_screen = Math.max(0, Math.min(1, v_screen));
-           const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
-           const v_true = Math.pow(v_screen, 1 / perspectiveFactor);
-           return { u, v: v_true };
-        }
-
+        // Calculate v_screen without clamping to allow off-grid placement
         let v_screen = (y - vp.y) / (canvas.height - vp.y);
-        v_screen = Math.max(0, Math.min(1, v_screen)); // Clamp v_screen between 0 and 1
 
         // Now find u. The horizontal line at y corresponds to a single v value on screen.
         const p1 = gridToCanvasCoords(0, v_screen);
         const p2 = gridToCanvasCoords(1, v_screen);
 
-        // Avoid division by zero if the line is vertical
+        let u;
+        // Avoid division by zero if the line is vertical (handles are close together)
         if (Math.abs(p2.x - p1.x) < 1) {
-             return { u: 0.5, v: v_screen }; // Best guess at the center
+             u = 0.5; // Best guess at the center
+        } else {
+            // u is the fractional distance of x between p1.x and p2.x
+            u = (x - p1.x) / (p2.x - p1.x);
         }
-
-        // u is the fractional distance of x between p1.x and p2.x
-        const u = (x - p1.x) / (p2.x - p1.x);
 
         // Now, convert the on-screen v (v_screen) to the true depth v (v_true)
         const perspectiveFactor = 1 + (state.handleTLPos.y / canvas.height) * 4;
         const v_true = Math.pow(v_screen, 1 / perspectiveFactor);
 
-
-        return { u: u, v: v_true }; // Allow dragging outside the 0-1 range
+        return { u, v: v_true };
     };
 
 
@@ -468,6 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const handleDragStart = (e, handle) => {
+        if (state.gridIsLocked) return;
         e.preventDefault();
         state.draggingHandle = handle;
         mapContainer.style.cursor = 'grabbing';
@@ -1326,7 +1304,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const opacity = parseFloat(e.target.value);
         state.gridOpacity = opacity;
         gridOpacityValue.textContent = opacity.toFixed(2);
+
+        // Update handle opacity
+        handleTL.style.opacity = opacity;
+        handleTR.style.opacity = opacity;
+
         requestRender();
+    });
+
+    gridLockToggle.addEventListener('change', (e) => {
+        state.gridIsLocked = e.target.checked;
+        const handleVisibility = state.gridIsLocked ? 'hidden' : 'visible';
+        handleTL.style.visibility = handleVisibility;
+        handleTR.style.visibility = handleVisibility;
     });
 
     // --- Animation Loop ---
@@ -1374,6 +1364,8 @@ document.addEventListener('DOMContentLoaded', () => {
     tokenUnitsSpan.textContent = mapUnitsSelect.value;
     gridOpacityValue.textContent = gridOpacitySlider.value;
     state.gridOpacity = parseFloat(gridOpacitySlider.value);
+    handleTL.style.opacity = state.gridOpacity;
+    handleTR.style.opacity = state.gridOpacity;
     populateSessionSelector();
     renderTokenList();
     requestRender(); // Initial render
