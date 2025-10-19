@@ -83,10 +83,14 @@
             </div>
             <div class="right-panel">
                 <div id="map-container">
-            <canvas id="grid-canvas"></canvas>
-            <div class="handle" id="handle-tl"></div>
-            <div class="handle" id="handle-tr"></div>
-        </div>
+                    <div id="map-ui-overlay">
+                        <button id="hamburger-btn" class="map-ui-btn">☰</button>
+                        <button id="fullscreen-btn" class="map-ui-btn">⛶</button>
+                    </div>
+                    <canvas id="grid-canvas"></canvas>
+                    <div class="handle" id="handle-tl"></div>
+                    <div class="handle" id="handle-tr"></div>
+                </div>
                 <div id="token-library">
                     <h4>Token Library (Drag to Map)</h4>
                     <!-- Tokens will be added here by JS -->

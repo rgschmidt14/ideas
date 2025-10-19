@@ -38,6 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const newSessionBtn = document.getElementById('new-session-btn');
     const gridOpacitySlider = document.getElementById('grid-opacity-slider');
     const gridOpacityValue = document.getElementById('grid-opacity-value');
+    const mainLayout = document.querySelector('.main-layout');
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
 
 
     // --- Application State ---
@@ -60,6 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
         editingTokenType: null, // 'library' or 'map'
         bgImageIsAnimated: false,
         animationFrameId: null,
+        touchDraggingToken: { // For library touch-drag
+            tokenId: null,
+            ghostElement: null,
+            offsetX: 0,
+            offsetY: 0,
+        },
     };
     let isThrottled = false;
     // --- Main Render Function ---
@@ -449,19 +458,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
 
-    [handleTL, handleTR].forEach(handle => {
-        handle.addEventListener('mousedown', (e) => {
-            state.draggingHandle = handle;
-            mapContainer.style.cursor = 'grabbing';
-            e.stopPropagation();
-        });
-    });
+    // --- Unified Event Handling for Mouse and Touch ---
 
-    document.addEventListener('mousemove', (e) => {
+    const getEventCoords = (e) => {
+        if (e.touches && e.touches.length) {
+            return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+        }
+        return { clientX: e.clientX, clientY: e.clientY };
+    };
+
+    const handleDragStart = (e, handle) => {
+        e.preventDefault();
+        state.draggingHandle = handle;
+        mapContainer.style.cursor = 'grabbing';
+        e.stopPropagation();
+    };
+
+    const handleDragMove = (e) => {
+        const { clientX, clientY } = getEventCoords(e);
+
         if (state.draggingHandle) {
+            e.preventDefault(); // Prevent scrolling on touch
             const rect = mapContainer.getBoundingClientRect();
-            let x = e.clientX - rect.left;
-            let y = e.clientY - rect.top;
+            let x = clientX - rect.left;
+            let y = clientY - rect.top;
 
             // Clamp coordinates to stay within canvas bounds for handles
             x = Math.max(0, Math.min(x, rect.width));
@@ -488,12 +508,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
         } else if (state.draggingTokenInstanceId) {
+            e.preventDefault(); // Prevent scrolling on touch
             const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
             if (!token) return;
 
             const rect = mapContainer.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
 
             // The new center of the token's base should be at the mouse position minus the pixel offset.
             const newCenterBaseX = x - state.pixelDragOffset.x;
@@ -508,10 +529,38 @@ document.addEventListener('DOMContentLoaded', () => {
             token.u = center_u - (logicalWidth / 2);
             token.v = center_v_true - (logicalLength / 2);
 
-
             requestRender();
         }
+    };
+
+    const handleDragEnd = () => {
+        if (state.draggingHandle) {
+            state.draggingHandle = null;
+            mapContainer.style.cursor = 'default';
+            requestRender(); // Final render after dragging handle
+        } else if (state.draggingTokenInstanceId) {
+            const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
+            if (token) {
+                snapTokenToGrid(token);
+            }
+            state.draggingTokenInstanceId = null;
+            mapContainer.style.cursor = 'default';
+            requestRender();
+        }
+    };
+
+
+    [handleTL, handleTR].forEach(handle => {
+        handle.addEventListener('mousedown', (e) => handleDragStart(e, handle));
+        handle.addEventListener('touchstart', (e) => handleDragStart(e, handle));
     });
+
+    document.addEventListener('mousemove', handleDragMove);
+    document.addEventListener('touchmove', handleDragMove, { passive: false }); // Use { passive: false } to allow preventDefault
+
+    document.addEventListener('mouseup', handleDragEnd);
+    document.addEventListener('touchend', handleDragEnd);
+
 
     onMapTokenList.addEventListener('click', (e) => {
         const item = e.target.closest('.on-map-token-item');
@@ -532,21 +581,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500); // Highlight for 500ms
     });
 
-    document.addEventListener('mouseup', () => {
-        if (state.draggingHandle) {
-            state.draggingHandle = null;
-            mapContainer.style.cursor = 'default';
-            requestRender(); // Final render after dragging handle
-        } else if (state.draggingTokenInstanceId) {
-            const token = state.tokensOnMap.find(t => t.instanceId === state.draggingTokenInstanceId);
-            if (token) {
-                snapTokenToGrid(token);
-            }
-            state.draggingTokenInstanceId = null;
-            mapContainer.style.cursor = 'default';
-            requestRender();
-        }
+    document.addEventListener('touchend', handleDragEnd);
+
+
+    onMapTokenList.addEventListener('click', (e) => {
+        const item = e.target.closest('.on-map-token-item');
+        if (!item) return;
+
+        const { instanceId } = item.dataset;
+        state.selectedTokenInstanceId = instanceId;
+        updateSelectedTokenUI(); // Update the slider controls
+        requestRender(); // Re-render to show canvas selection outline immediately
+
+        // Temporary visual highlight on the list item
+        item.classList.add('highlight');
+        setTimeout(() => {
+            item.classList.remove('highlight');
+            // Optionally, clear selection after highlight if desired
+            // state.selectedTokenInstanceId = null;
+            // render();
+        }, 500); // Highlight for 500ms
     });
+
+    document.addEventListener('mouseup', handleDragEnd);
+    document.addEventListener('touchend', handleDragEnd);
 
     bgImageInput.addEventListener('change', (event) => {
         const file = event.target.files[0];
@@ -687,6 +745,73 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Custom Touch Drag-and-Drop for Token Library ---
+    tokenLibrary.addEventListener('touchstart', (e) => {
+        const tokenElement = e.target.closest('.token-in-library');
+        if (!tokenElement) return;
+
+        e.preventDefault(); // Prevent scroll/zoom
+
+        const tokenId = tokenElement.dataset.tokenId;
+        const originalToken = state.tokensInLibrary.find(t => t.id === tokenId);
+        if (!originalToken) return;
+
+        const rect = tokenElement.getBoundingClientRect();
+        const touch = e.touches[0];
+
+        // Create a ghost element
+        const ghost = tokenElement.cloneNode(true);
+        ghost.style.position = 'absolute';
+        ghost.style.left = `${touch.pageX}px`;
+        ghost.style.top = `${touch.pageY}px`;
+        ghost.style.width = `${rect.width}px`;
+        ghost.style.height = `${rect.height}px`;
+        ghost.style.opacity = '0.7';
+        ghost.style.pointerEvents = 'none'; // So it doesn't interfere with other events
+        ghost.style.zIndex = '1000';
+        document.body.appendChild(ghost);
+
+        state.touchDraggingToken = {
+            tokenId: tokenId,
+            ghostElement: ghost,
+            offsetX: touch.clientX - rect.left,
+            offsetY: touch.clientY - rect.top,
+        };
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!state.touchDraggingToken.ghostElement) return;
+
+        const touch = e.touches[0];
+        const { ghostElement, offsetX, offsetY } = state.touchDraggingToken;
+
+        ghost.style.left = `${touch.pageX - offsetX}px`;
+        ghost.style.top = `${touch.pageY - offsetY}px`;
+    });
+
+    document.addEventListener('touchend', (e) => {
+        if (!state.touchDraggingToken.ghostElement) return;
+
+        const { ghostElement, tokenId } = state.touchDraggingToken;
+        const touch = e.changedTouches[0];
+
+        // Check if the drop happened over the canvas
+        const canvasRect = canvas.getBoundingClientRect();
+        if (
+            touch.clientX >= canvasRect.left &&
+            touch.clientX <= canvasRect.right &&
+            touch.clientY >= canvasRect.top &&
+            touch.clientY <= canvasRect.bottom
+        ) {
+            // Re-use the drop logic
+            addTokenToMap(tokenId, touch.clientX, touch.clientY);
+        }
+
+        // Cleanup
+        document.body.removeChild(ghostElement);
+        state.touchDraggingToken = { tokenId: null, ghostElement: null, offsetX: 0, offsetY: 0 };
+    });
+
     tokenLibrary.addEventListener('click', (e) => {
         if (e.target.classList.contains('token-in-library')) {
             const tokenId = e.target.dataset.tokenId;
@@ -739,45 +864,50 @@ document.addEventListener('DOMContentLoaded', () => {
         e.dataTransfer.dropEffect = 'copy';
     });
 
-    canvas.addEventListener('drop', (e) => {
-        e.preventDefault();
-        const tokenId = e.dataTransfer.getData('text/plain');
-        const originalToken = state.tokensInLibrary.find(t => t.id === tokenId);
+    const addTokenToMap = (tokenId, clientX, clientY) => {
+        return new Promise((resolve, reject) => {
+            const originalToken = state.tokensInLibrary.find(t => t.id === tokenId);
+            if (!originalToken) {
+                return reject(new Error(`Token with id ${tokenId} not found.`));
+            }
 
-        if (originalToken) {
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
 
             let { u, v } = canvasToGridCoords(x, y);
 
-            // Adjust position to center the token on the cursor
             const logicalWidth = originalToken.width / state.mapWidth;
             const logicalLength = originalToken.length / state.mapLength;
             u -= logicalWidth / 2;
             v -= logicalLength / 2;
 
-
             const newMapToken = {
                 ...originalToken,
                 instanceId: `map-token-${state.nextTokenInstanceId++}`,
-                u, // logical x (0-1)
-                v, // logical y (0-1)
-                altitude: 0,
-                img: null,
+                u, v, altitude: 0, img: null,
                 isAnimated: originalToken.isAnimated || false,
             };
 
-            // Preload the image for rendering
             const img = new Image();
             img.onload = () => {
                 newMapToken.img = img;
-                state.tokensOnMap.push(newMapToken); // Add to state only when loaded
-                renderTokenList(); // Update the list now that the token is added
-                requestRender(); // Use the new render loop
+                state.tokensOnMap.push(newMapToken);
+                renderTokenList();
+                requestRender();
+                resolve(); // Resolve the promise when the image is loaded and state is updated
+            };
+            img.onerror = () => {
+                reject(new Error("Failed to load token image for map."));
             };
             img.src = newMapToken.imgSrc;
-        }
+        });
+    };
+
+    canvas.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const tokenId = e.dataTransfer.getData('text/plain');
+        addTokenToMap(tokenId, e.clientX, e.clientY);
     });
 
     // --- Functions ---
@@ -932,10 +1062,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    canvas.addEventListener('mousedown', (e) => {
+    const handleCanvasPointerDown = (e) => {
+        e.preventDefault(); // Prevent text selection, etc.
+        const { clientX, clientY } = getEventCoords(e);
         const rect = mapContainer.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
 
         // Find the token that is visually "on top" (higher v value)
         const clickedToken = [...state.tokensOnMap]
@@ -974,7 +1106,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateSelectedTokenUI();
         requestRender();
-    });
+    };
+
+    canvas.addEventListener('mousedown', handleCanvasPointerDown);
+    canvas.addEventListener('touchstart', handleCanvasPointerDown, { passive: false });
 
     tokenAltitudeSlider.addEventListener('input', (e) => {
         if (!state.selectedTokenInstanceId) return;
@@ -1219,6 +1354,20 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 
+    // --- UI Functionality ---
+    hamburgerBtn.addEventListener('click', () => {
+        mainLayout.classList.toggle('left-panel-hidden');
+        // We might need to resize the canvas if the container changes size
+        setTimeout(resizeCanvas, 50); // Allow transition to start
+    });
+
+    fullscreenBtn.addEventListener('click', () => {
+        mainLayout.classList.toggle('fullscreen');
+        // We MUST resize the canvas after the transition/change
+        setTimeout(resizeCanvas, 50); // Allow transition to start
+    });
+
+
     // --- Initial Setup ---
     resizeCanvas();
     updateGridSettings();
@@ -1232,4 +1381,5 @@ document.addEventListener('DOMContentLoaded', () => {
     // Expose for debugging/testing
     window.state = state;
     window.render = requestRender; // Expose the new render request function
+    window.addTokenToMap = addTokenToMap;
 });

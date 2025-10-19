@@ -1,0 +1,3 @@
+127.0.0.1 - - [16/Oct/2025 22:09:05] "GET /ttrpg-map-easy/ HTTP/1.1" 200 -
+127.0.0.1 - - [16/Oct/2025 22:09:05] "GET /ttrpg-map-easy/script.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Oct/2025 22:09:05] "GET /ttrpg-map-easy/style.css HTTP/1.1" 200 -
