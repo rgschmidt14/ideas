@@ -318,10 +318,46 @@ document.addEventListener("DOMContentLoaded", function() {
         saveState();
     });
 
+    document.getElementById("weighted-regression").addEventListener("change", function() {
+        updateLineOfBestFit();
+        saveState();
+    });
+
     document.getElementById("polynomial-degree").addEventListener("input", function() {
         updateLineOfBestFit();
         saveState();
     });
+
+    function calculateWeights(data) {
+        if (data.length < 2) {
+            return data.map(() => 1);
+        }
+
+        const indexedData = data.map((p, i) => ({ ...p, originalIndex: i }));
+        indexedData.sort((a, b) => a.x - b.x);
+
+        const weights = new Array(data.length);
+
+        if (indexedData[indexedData.length - 1].x === indexedData[0].x) {
+            return data.map(() => 1);
+        }
+
+        for (let i = 0; i < indexedData.length; i++) {
+            const point = indexedData[i];
+            let weight = 0;
+            if (i === 0) {
+                weight = (indexedData[1].x - point.x) / 2;
+            } else if (i === indexedData.length - 1) {
+                weight = (point.x - indexedData[i - 1].x) / 2;
+            } else {
+                const prevDist = (point.x - indexedData[i - 1].x) / 2;
+                const nextDist = (indexedData[i + 1].x - point.x) / 2;
+                weight = prevDist + nextDist;
+            }
+            weights[point.originalIndex] = weight;
+        }
+        return weights;
+    }
 
     function updateLineOfBestFitVariablesAndHTML(lineDataObj) {
         if (!lineDataObj || lineDataObj.rSquared === null || isNaN(lineDataObj.rSquared)) {
@@ -343,7 +379,14 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const regressionType = document.getElementById("regression-type").value;
+        const isWeighted = document.getElementById("weighted-regression").checked;
+
         let points = chartData;
+        if (isWeighted) {
+            const weights = calculateWeights(chartData);
+            points = chartData.map((p, i) => ({ ...p, weight: weights[i] }));
+        }
+
         lineDataObj = null; // Reset
 
         switch (regressionType) {
@@ -377,11 +420,15 @@ document.addEventListener("DOMContentLoaded", function() {
             case 'theil-sen':
                 lineDataObj = calculateTheilSenRegression(points);
                 break;
+            case 'sigmoidal':
+                lineDataObj = calculateSigmoidalRegression(points);
+                break;
         }
 
         if (lineDataObj) {
             config.data.datasets[1].data = lineDataObj.data;
             updateLineOfBestFitVariablesAndHTML(lineDataObj);
+            lineDataObj.predict = lineDataObj.predict;
         } else {
             config.data.datasets[1].data = [];
             updateLineOfBestFitVariablesAndHTML(null);
@@ -391,10 +438,18 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function calculateLinearRegression(data) {
-        const points = data.map(p => [p.x, p.y]);
-        if (points.length < 2) return null;
+        const isWeighted = data[0].weight !== undefined;
+        if (data.length < 2) return null;
 
-        const { m, b } = ss.linearRegression(points);
+        let m, b, rSquared;
+
+        if (isWeighted) {
+            ({ m, b, rSquared } = calculateWeightedLinearRegression(data));
+        } else {
+            const points = data.map(p => [p.x, p.y]);
+            ({ m, b } = ss.linearRegression(points));
+            rSquared = ss.rSquared(points, (x) => m * x + b);
+        }
 
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
@@ -404,18 +459,94 @@ document.addEventListener("DOMContentLoaded", function() {
             { x: xMax, y: m * xMax + b }
         ];
 
+        const predict = (x) => m * x + b;
         const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
-        const rSquared = ss.rSquared(points, (x) => m * x + b);
 
-        return { data: lineData, equation, rSquared };
+        return { data: lineData, equation, rSquared, predict };
+    }
+
+    function calculateWeightedLinearRegression(data, x_transform = (x) => x, y_transform = (y) => y) {
+        let sum_w = 0, sum_wx = 0, sum_wy = 0, sum_wxy = 0, sum_wx2 = 0;
+        for (const p of data) {
+            const w = p.weight;
+            const x = x_transform(p.x);
+            const y = y_transform(p.y);
+            sum_w += w;
+            sum_wx += w * x;
+            sum_wy += w * y;
+            sum_wxy += w * x * y;
+            sum_wx2 += w * x * x;
+        }
+        const m = (sum_w * sum_wxy - sum_wx * sum_wy) / (sum_w * sum_wx2 - sum_wx * sum_wx);
+        const b = (sum_wy - m * sum_wx) / sum_w;
+
+        const y_mean_weighted = data.reduce((sum, p) => sum + y_transform(p.y) * p.weight, 0) / data.reduce((sum, p) => sum + p.weight, 0);
+        let ss_tot = 0;
+        let ss_res = 0;
+        for (const p of data) {
+            ss_tot += p.weight * Math.pow(y_transform(p.y) - y_mean_weighted, 2);
+            ss_res += p.weight * Math.pow(y_transform(p.y) - (m * x_transform(p.x) + b), 2);
+        }
+        const rSquared = 1 - ss_res / ss_tot;
+
+        return { m, b, rSquared };
     }
 
     function calculatePolynomialRegression(data, degree) {
-        const points = data.map(p => [p.x, p.y]);
-        if (points.length <= degree) return null;
+        const isWeighted = data[0].weight !== undefined;
+        if (data.length <= degree) return null;
 
-        const result = regression.polynomial(points, { order: degree });
-        const predict = (x) => result.predict(x)[1];
+        let result, predict, rSquared;
+        let points = data.map(p => [p.x, p.y]);
+
+        if (isWeighted) {
+            const X = [];
+            const Y = [];
+            for (let i = 0; i < data.length; i++) {
+                const row = [];
+                for (let j = 0; j <= degree; j++) {
+                    row.push(Math.pow(data[i].x, j));
+                }
+                X.push(row);
+                Y.push(data[i].y);
+            }
+
+            const XT = numeric.transpose(X);
+            const W = numeric.diag(data.map(p => p.weight));
+            const XTW = numeric.dot(XT, W);
+            const XTWX = numeric.dot(XTW, X);
+            const XTWY = numeric.dot(XTW, Y);
+            const coeffs = numeric.solve(XTWX, XTWY);
+
+            predict = (x) => {
+                let y = 0;
+                for (let i = 0; i < coeffs.length; i++) {
+                    y += coeffs[i] * Math.pow(x, i);
+                }
+                return y;
+            };
+
+            const y_mean_weighted = data.reduce((sum, p) => sum + p.y * p.weight, 0) / data.reduce((sum, p) => sum + p.weight, 0);
+            let ss_tot = 0;
+            let ss_res = 0;
+            for (const p of data) {
+                ss_tot += p.weight * Math.pow(p.y - y_mean_weighted, 2);
+                ss_res += p.weight * Math.pow(p.y - predict(p.x), 2);
+            }
+            rSquared = 1 - ss_res / ss_tot;
+
+            let equation = 'y = ';
+            for(let i = coeffs.length - 1; i >= 0; i--) {
+                equation += `${coeffs[i].toFixed(2)}x^${i} + `;
+            }
+            equation = equation.slice(0, -3);
+            result = { string: equation };
+
+        } else {
+            result = regression.polynomial(points, { order: degree });
+            predict = (x) => result.predict(x)[1];
+            rSquared = ss.rSquared(points, predict);
+        }
 
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
@@ -427,19 +558,26 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = result.string;
-        // R-squared calculation is not part of regression-js, so we keep using simple-statistics for that.
-        const rSquared = ss.rSquared(points, predict);
 
-        return { data: lineData, equation, rSquared };
+        return { data: lineData, equation, rSquared, predict };
     }
 
     function calculateLogarithmicRegression(data) {
-        const points = data.map(p => [Math.log(p.x), p.y]);
-        if (points.length < 2) return null;
+        const isWeighted = data[0].weight !== undefined;
+        const filteredData = data.filter(p => p.x > 0);
+        if (filteredData.length < 2) return null;
 
-        const { m, b } = ss.linearRegression(points);
+        let m, b, rSquared;
+
+        if (isWeighted) {
+            ({ m, b, rSquared } = calculateWeightedLinearRegression(filteredData, (x) => Math.log(x)));
+        } else {
+            const points = filteredData.map(p => [Math.log(p.x), p.y]);
+            ({ m, b } = ss.linearRegression(points));
+            rSquared = ss.rSquared(filteredData.map(p => [p.x, p.y]), (x) => m * Math.log(x) + b);
+        }
+
         const predict = (x) => m * Math.log(x) + b;
-
         const xMin = Math.max(config.options.scales.x.min, 0.01); // Avoid log(0)
         const xMax = config.options.scales.x.max;
         const step = (xMax - xMin) / 100;
@@ -452,19 +590,26 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${m.toFixed(2)}ln(x) + ${b.toFixed(2)}`;
-        const rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
-
-        return { data: lineData, equation, rSquared };
+        return { data: lineData, equation, rSquared, predict };
     }
 
     function calculatePowerRegression(data) {
-        const points = data.map(p => [Math.log(p.x), Math.log(p.y)]);
-        if (points.length < 2) return null;
+        const isWeighted = data[0].weight !== undefined;
+        const filteredData = data.filter(p => p.x > 0 && p.y > 0);
+        if (filteredData.length < 2) return null;
 
-        const { m, b } = ss.linearRegression(points);
+        let m, b, rSquared;
+
+        if (isWeighted) {
+            ({ m, b, rSquared } = calculateWeightedLinearRegression(filteredData, (x) => Math.log(x), (y) => Math.log(y)));
+        } else {
+            const points = filteredData.map(p => [Math.log(p.x), Math.log(p.y)]);
+            ({ m, b } = ss.linearRegression(points));
+            rSquared = ss.rSquared(filteredData.map(p => [p.x, p.y]), (x) => Math.exp(b) * Math.pow(x, m));
+        }
+
         const a = Math.exp(b);
         const predict = (x) => a * Math.pow(x, m);
-
         const xMin = Math.max(config.options.scales.x.min, 0.01);
         const xMax = config.options.scales.x.max;
         const step = (xMax - xMin) / 100;
@@ -477,19 +622,26 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${a.toFixed(2)}x^${m.toFixed(2)}`;
-        const rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
-
-        return { data: lineData, equation, rSquared };
+        return { data: lineData, equation, rSquared, predict };
     }
 
     function calculateExponentialRegression(data) {
-        const points = data.map(p => [p.x, Math.log(p.y)]);
-        if (points.length < 2) return null;
+        const isWeighted = data[0].weight !== undefined;
+        const filteredData = data.filter(p => p.y > 0);
+        if (filteredData.length < 2) return null;
 
-        const { m, b } = ss.linearRegression(points);
+        let m, b, rSquared;
+
+        if (isWeighted) {
+            ({ m, b, rSquared } = calculateWeightedLinearRegression(filteredData, (x) => x, (y) => Math.log(y)));
+        } else {
+            const points = filteredData.map(p => [p.x, Math.log(p.y)]);
+            ({ m, b } = ss.linearRegression(points));
+            rSquared = ss.rSquared(filteredData.map(p => [p.x, p.y]), (x) => Math.exp(b) * Math.exp(m * x));
+        }
+
         const a = Math.exp(b);
         const predict = (x) => a * Math.exp(m * x);
-
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
         const step = (xMax - xMin) / 100;
@@ -500,17 +652,63 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${a.toFixed(2)}e^(${m.toFixed(2)}x)`;
-        const rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
-
-        return { data: lineData, equation, rSquared };
+        return { data: lineData, equation, rSquared, predict };
     }
 
     function calculateTheilSenRegression(data) {
-        const points = data.map(p => [p.x, p.y]);
-        if (points.length < 2) return null;
+        const isWeighted = data[0].weight !== undefined;
+        if (data.length < 2) return null;
 
-        const line = ss.theilSen(points);
+        let m, b, rSquared;
 
+        function weightedMedian(values, weights) {
+            const sortedIndices = values.map((_, i) => i).sort((a, b) => values[a] - values[b]);
+            let sum = 0;
+            const totalWeight = weights.reduce((a, b) => a + b, 0);
+            for (const i of sortedIndices) {
+                sum += weights[i];
+                if (sum >= totalWeight / 2) {
+                    return values[i];
+                }
+            }
+            return values[sortedIndices[sortedIndices.length - 1]];
+        }
+
+        if (isWeighted) {
+            const slopes = [];
+            const weights = [];
+            for (let i = 0; i < data.length; i++) {
+                for (let j = i + 1; j < data.length; j++) {
+                    if (data[j].x - data[i].x !== 0) {
+                        slopes.push((data[j].y - data[i].y) / (data[j].x - data[i].x));
+                        weights.push((data[i].weight + data[j].weight) / 2);
+                    }
+                }
+            }
+            m = weightedMedian(slopes, weights);
+            const intercepts = data.map(p => p.y - m * p.x);
+            const interceptWeights = data.map(p => p.weight);
+            b = weightedMedian(intercepts, interceptWeights);
+
+            const y_mean_weighted = data.reduce((sum, p) => sum + p.y * p.weight, 0) / data.reduce((sum, p) => sum + p.weight, 0);
+            let ss_tot = 0;
+            let ss_res = 0;
+            for (const p of data) {
+                ss_tot += p.weight * Math.pow(p.y - y_mean_weighted, 2);
+                ss_res += p.weight * Math.pow(p.y - (m * p.x + b), 2);
+            }
+            rSquared = 1 - ss_res / ss_tot;
+        } else {
+            const points = data.map(p => [p.x, p.y]);
+            const line = ss.theilSen(points);
+            const xMin = config.options.scales.x.min;
+            const xMax = config.options.scales.x.max;
+            m = (line(xMax) - line(xMin)) / (xMax - xMin);
+            b = line(xMin) - m * xMin;
+            rSquared = ss.rSquared(points, line);
+        }
+
+        const line = (x) => m * x + b;
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
 
@@ -519,14 +717,84 @@ document.addEventListener("DOMContentLoaded", function() {
             { x: xMax, y: line(xMax) }
         ];
 
-        // The theilSen function does not directly provide m and b, so we calculate them
-        const m = (line(xMax) - line(xMin)) / (xMax - xMin);
-        const b = line(xMin) - m * xMin;
-
         const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
-        const rSquared = ss.rSquared(points, line);
+        return { data: lineData, equation, rSquared, predict: line };
+    }
 
-        return { data: lineData, equation, rSquared };
+    function calculateSigmoidalRegression(data) {
+        const isWeighted = data[0].weight !== undefined;
+        if (data.length < 3) return null;
+
+        const xMin = Math.min(...data.map(p => p.x));
+        const xMax = Math.max(...data.map(p => p.x));
+        const yMin = Math.min(...data.map(p => p.y));
+        const yMax = Math.max(...data.map(p => p.y));
+
+        const normalizedData = data.map(p => ({
+            x: (p.x - xMin) / (xMax - xMin),
+            y: (p.y - yMin) / (yMax - yMin),
+            weight: p.weight || 1
+        }));
+
+        let l = 1.0;
+        let k = 1.0;
+        let x0 = 0.5;
+        const learningRate = 0.01;
+        const iterations = 10000;
+
+        for (let i = 0; i < iterations; i++) {
+            let dL = 0;
+            let dK = 0;
+            let dX0 = 0;
+
+            for (const p of normalizedData) {
+                const exp_term = Math.exp(-k * (p.x - x0));
+                const predicted_y = l / (1 + exp_term);
+                const error = predicted_y - p.y;
+                const weight = p.weight;
+
+                dL += weight * error * (1 / (1 + exp_term));
+                dK += weight * error * (l * exp_term * (p.x - x0)) / Math.pow(1 + exp_term, 2);
+                dX0 += weight * error * (-l * exp_term * k) / Math.pow(1 + exp_term, 2);
+            }
+
+            l -= learningRate * dL;
+            k -= learningRate * dK;
+            x0 -= learningRate * dX0;
+        }
+
+        const predict = (x) => {
+            const normalizedX = (x - xMin) / (xMax - xMin);
+            const normalizedY = l / (1 + Math.exp(-k * (normalizedX - x0)));
+            return normalizedY * (yMax - yMin) + yMin;
+        };
+
+        const chartXMin = config.options.scales.x.min;
+        const chartXMax = config.options.scales.x.max;
+        const step = (chartXMax - chartXMin) / 100;
+        const lineData = [];
+
+        for (let x = chartXMin; x <= chartXMax; x += step) {
+            lineData.push({ x, y: predict(x) });
+        }
+
+        const equation = `y = ${yMax.toFixed(2)} / (1 + e^(-${k.toFixed(2)} * (x - ${x0.toFixed(2)})))`;
+        let rSquared;
+
+        if(isWeighted){
+            const y_mean_weighted = data.reduce((sum, p) => sum + p.y * p.weight, 0) / data.reduce((sum, p) => sum + p.weight, 0);
+            let ss_tot = 0;
+            let ss_res = 0;
+            for (const p of data) {
+                ss_tot += p.weight * Math.pow(p.y - y_mean_weighted, 2);
+                ss_res += p.weight * Math.pow(p.y - predict(p.x), 2);
+            }
+            rSquared = 1 - ss_res / ss_tot;
+        } else {
+            rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
+        }
+
+        return { data: lineData, equation, rSquared, predict };
     }
     // Function to update the points table
     function updateTable() {
@@ -905,5 +1173,13 @@ document.addEventListener("DOMContentLoaded", function() {
         myChart.resize(); // Chart.js method to resize the chart
     });
 
-
+    document.getElementById("predict-button").addEventListener("click", function() {
+        const x = parseFloat(document.getElementById("predict-x").value);
+        if (!isNaN(x) && lineDataObj && lineDataObj.predict) {
+            const predictedY = lineDataObj.predict(x);
+            document.querySelector('.prediction-result span').innerText = predictedY.toFixed(4);
+        } else {
+            document.querySelector('.prediction-result span').innerText = '';
+        }
+    });
 });

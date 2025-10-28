@@ -8,6 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-statistics/7.7.0/simple-statistics.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/regression/2.0.1/regression.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
 </head>
 <body>
     <header>
@@ -53,6 +54,16 @@
                 <p class="accuracy">Accuracy (R²): <span></span></p>
             </div>
 
+            <div class="prediction-container">
+                <h2>Prediction</h2>
+                <div class="prediction-item">
+                    <label for="predict-x">X-Value:</label>
+                    <input type="number" id="predict-x">
+                    <button id="predict-button">Predict</button>
+                </div>
+                <p class="prediction-result">Predicted Y: <span></span></p>
+            </div>
+
             <div class="settings-container">
                 <h2>Settings</h2>
                 <div class="setting-item">
@@ -92,6 +103,7 @@
                         <option value="power">Power</option>
                         <option value="exponential">Exponential</option>
                         <option value="theil-sen">Theil-Sen</option>
+                        <option value="sigmoidal">Sigmoidal</option>
                     </select>
                 </div>
                 <div class="setting-item">
@@ -118,6 +130,10 @@
                 <div class="setting-item">
                     <label for="line-thickness">Line Thickness:</label>
                     <input type="range" id="line-thickness" min="1" max="5" step="1" value="3">
+                </div>
+                <div class="setting-item">
+                    <label for="weighted-regression">Weighted Regression:</label>
+                    <input type="checkbox" id="weighted-regression">
                 </div>
                 <button id="auto-select-best-fit">Auto-Select</button>
             </div>
