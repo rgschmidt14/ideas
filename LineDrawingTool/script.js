@@ -363,9 +363,11 @@ document.addEventListener("DOMContentLoaded", function() {
         if (!lineDataObj || lineDataObj.rSquared === null || isNaN(lineDataObj.rSquared)) {
             document.querySelector('.equation span').innerText = '';
             document.querySelector('.accuracy span').innerText = '';
+            document.querySelector('.adjusted-accuracy span').innerText = '';
         } else {
             document.querySelector('.equation span').innerText = lineDataObj.equation;
             document.querySelector('.accuracy span').innerText = lineDataObj.rSquared.toFixed(4);
+            document.querySelector('.adjusted-accuracy span').innerText = lineDataObj.adjustedRSquared.toFixed(4);
         }
     }
 
@@ -437,11 +439,18 @@ document.addEventListener("DOMContentLoaded", function() {
         myChart.update();
     }
 
+    function calculateAdjustedRSquared(rSquared, n, k) {
+        if (n - k - 1 === 0) return rSquared;
+        return 1 - ((1 - rSquared) * (n - 1)) / (n - k - 1);
+    }
+
     function calculateLinearRegression(data) {
         const isWeighted = data[0].weight !== undefined;
         if (data.length < 2) return null;
 
         let m, b, rSquared;
+        const n = data.length;
+        const k = 1; // number of independent variables
 
         if (isWeighted) {
             ({ m, b, rSquared } = calculateWeightedLinearRegression(data));
@@ -450,6 +459,8 @@ document.addEventListener("DOMContentLoaded", function() {
             ({ m, b } = ss.linearRegression(points));
             rSquared = ss.rSquared(points, (x) => m * x + b);
         }
+
+        const adjustedRSquared = calculateAdjustedRSquared(rSquared, n, k);
 
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
@@ -462,7 +473,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const predict = (x) => m * x + b;
         const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
 
-        return { data: lineData, equation, rSquared, predict };
+        return { data: lineData, equation, rSquared, adjustedRSquared, predict };
     }
 
     function calculateWeightedLinearRegression(data, x_transform = (x) => x, y_transform = (y) => y) {
@@ -498,6 +509,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
         let result, predict, rSquared;
         let points = data.map(p => [p.x, p.y]);
+        const n = data.length;
+        const k = degree;
 
         if (isWeighted) {
             const X = [];
@@ -548,6 +561,8 @@ document.addEventListener("DOMContentLoaded", function() {
             rSquared = ss.rSquared(points, predict);
         }
 
+        const adjustedRSquared = calculateAdjustedRSquared(rSquared, n, k);
+
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
         const step = (xMax - xMin) / 100;
@@ -559,7 +574,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         const equation = result.string;
 
-        return { data: lineData, equation, rSquared, predict };
+        return { data: lineData, equation, rSquared, adjustedRSquared, predict };
     }
 
     function calculateLogarithmicRegression(data) {
@@ -590,7 +605,8 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${m.toFixed(2)}ln(x) + ${b.toFixed(2)}`;
-        return { data: lineData, equation, rSquared, predict };
+        const adjustedRSquared = calculateAdjustedRSquared(rSquared, filteredData.length, 2);
+        return { data: lineData, equation, rSquared, adjustedRSquared, predict };
     }
 
     function calculatePowerRegression(data) {
@@ -622,7 +638,8 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${a.toFixed(2)}x^${m.toFixed(2)}`;
-        return { data: lineData, equation, rSquared, predict };
+        const adjustedRSquared = calculateAdjustedRSquared(rSquared, filteredData.length, 2);
+        return { data: lineData, equation, rSquared, adjustedRSquared, predict };
     }
 
     function calculateExponentialRegression(data) {
@@ -652,7 +669,8 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         const equation = `y = ${a.toFixed(2)}e^(${m.toFixed(2)}x)`;
-        return { data: lineData, equation, rSquared, predict };
+        const adjustedRSquared = calculateAdjustedRSquared(rSquared, filteredData.length, 2);
+        return { data: lineData, equation, rSquared, adjustedRSquared, predict };
     }
 
     function calculateTheilSenRegression(data) {
@@ -733,7 +751,8 @@ document.addEventListener("DOMContentLoaded", function() {
         ];
 
         const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
-        return { data: lineData, equation, rSquared, predict: predict };
+        const adjustedRSquared = calculateAdjustedRSquared(rSquared, data.length, 1);
+        return { data: lineData, equation, rSquared, adjustedRSquared, predict: predict };
     }
 
     function calculateSigmoidalRegression(data) {
@@ -809,7 +828,8 @@ document.addEventListener("DOMContentLoaded", function() {
             rSquared = ss.rSquared(data.map(p => [p.x, p.y]), predict);
         }
 
-        return { data: lineData, equation, rSquared, predict };
+        const adjustedRSquared = calculateAdjustedRSquared(rSquared, data.length, 3);
+        return { data: lineData, equation, rSquared, adjustedRSquared, predict };
     }
     // Function to update the points table
     function updateTable() {
@@ -859,6 +879,8 @@ function autoSelectBestFit() {
             const results = [];
             const regressionTypes = ['linear', 'polynomial', 'logarithmic', 'power', 'exponential', 'theil-sen', 'sigmoidal'];
             const weightedOptions = [false, true];
+            const metric = document.getElementById('auto-select-metric').value;
+
 
             weightedOptions.forEach(isWeighted => {
                 let points = chartData;
@@ -874,7 +896,7 @@ function autoSelectBestFit() {
                             if (points.length > degree) {
                                 result = calculatePolynomialRegression(points, degree);
                                 if (result && isFinite(result.rSquared)) {
-                                    results.push({ type, degree, weighted: isWeighted, rSquared: result.rSquared, equation: result.equation });
+                                    results.push({ type, degree, weighted: isWeighted, rSquared: result.rSquared, adjustedRSquared: result.adjustedRSquared, equation: result.equation });
                                 }
                             }
                         }
@@ -903,7 +925,7 @@ function autoSelectBestFit() {
                                 break;
                         }
                         if (result && isFinite(result.rSquared)) {
-                            results.push({ type, weighted: isWeighted, rSquared: result.rSquared, equation: result.equation });
+                            results.push({ type, weighted: isWeighted, rSquared: result.rSquared, adjustedRSquared: result.adjustedRSquared, equation: result.equation });
                         }
                     }
                 });
@@ -913,18 +935,18 @@ function autoSelectBestFit() {
                 return;
             }
 
-            results.sort((a, b) => b.rSquared - a.rSquared);
+            results.sort((a, b) => b[metric] - a[metric]);
             console.log("Sorted Results:", JSON.stringify(results, null, 2));
 
 
             const bestFit = results[0];
             const secondBestFit = results.length > 1 ? results[1] : null;
 
-            if (secondBestFit && (bestFit.rSquared - secondBestFit.rSquared < 0.05)) {
+            if (secondBestFit && (bestFit[metric] - secondBestFit[metric] < 0.05)) {
                 // Tie-breaker
                 const tieBreakerOptions = document.getElementById('tie-breaker-options');
                 tieBreakerOptions.innerHTML = '';
-                const topResults = results.filter(r => bestFit.rSquared - r.rSquared < 0.05);
+                const topResults = results.filter(r => bestFit[metric] - r[metric] < 0.05);
 
                 topResults.forEach((result, index) => {
                     const weightedText = result.weighted ? ' (Weighted)' : '';

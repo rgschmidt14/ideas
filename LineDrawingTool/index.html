@@ -52,6 +52,7 @@
                 <h2>Results</h2>
                 <p class="equation">Equation: <span></span></p>
                 <p class="accuracy">Accuracy (R²): <span></span></p>
+                <p class="adjusted-accuracy">Adjusted R²<span class="tooltip" title="Penalizes model complexity to favor better predictive accuracy.">*</span>: <span></span></p>
             </div>
 
             <div class="prediction-container">
@@ -134,6 +135,13 @@
                 <div class="setting-item">
                     <label for="weighted-regression">Weighted Regression:</label>
                     <input type="checkbox" id="weighted-regression">
+                </div>
+                <div class="setting-item">
+                    <label for="auto-select-metric">Auto-Select Metric:</label>
+                    <select id="auto-select-metric">
+                        <option value="rSquared">R-squared</option>
+                        <option value="adjustedRSquared" selected>Adjusted R-squared</option>
+                    </select>
                 </div>
                 <button id="auto-select-best-fit">Auto-Select</button>
             </div>
