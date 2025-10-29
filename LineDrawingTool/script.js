@@ -700,25 +700,40 @@ document.addEventListener("DOMContentLoaded", function() {
             rSquared = 1 - ss_res / ss_tot;
         } else {
             const points = data.map(p => [p.x, p.y]);
-            const line = ss.theilSen(points);
-            const xMin = config.options.scales.x.min;
-            const xMax = config.options.scales.x.max;
-            m = (line(xMax) - line(xMin)) / (xMax - xMin);
-            b = line(xMin) - m * xMin;
-            rSquared = ss.rSquared(points, line);
+
+            // Custom Theil-Sen implementation
+            const slopes = [];
+            for (let i = 0; i < points.length; i++) {
+                for (let j = i + 1; j < points.length; j++) {
+                    if (points[j][0] - points[i][0] !== 0) {
+                        slopes.push((points[j][1] - points[i][1]) / (points[j][0] - points[i][0]));
+                    }
+                }
+            }
+            slopes.sort((a, b) => a - b);
+            const medianSlope = slopes.length % 2 === 0 ? (slopes[slopes.length / 2 - 1] + slopes[slopes.length / 2]) / 2 : slopes[Math.floor(slopes.length / 2)];
+            m = medianSlope;
+
+            const intercepts = points.map(p => p[1] - m * p[0]);
+            intercepts.sort((a, b) => a - b);
+            const medianIntercept = intercepts.length % 2 === 0 ? (intercepts[intercepts.length / 2 - 1] + intercepts[intercepts.length / 2]) / 2 : intercepts[Math.floor(intercepts.length / 2)];
+            b = medianIntercept;
+
+            const predict = (x) => m * x + b;
+            rSquared = ss.rSquared(points, predict);
         }
 
-        const line = (x) => m * x + b;
+        const predict = (x) => m * x + b;
         const xMin = config.options.scales.x.min;
         const xMax = config.options.scales.x.max;
 
         const lineData = [
-            { x: xMin, y: line(xMin) },
-            { x: xMax, y: line(xMax) }
+            { x: xMin, y: predict(xMin) },
+            { x: xMax, y: predict(xMax) }
         ];
 
         const equation = `y = ${m.toFixed(2)}x + ${b.toFixed(2)}`;
-        return { data: lineData, equation, rSquared, predict: line };
+        return { data: lineData, equation, rSquared, predict: predict };
     }
 
     function calculateSigmoidalRegression(data) {
@@ -830,88 +845,152 @@ document.addEventListener("DOMContentLoaded", function() {
         saveState();  // Save the state
     };
 
+function autoSelectBestFit() {
+    const loadingIndicator = document.getElementById('loading-indicator');
+    loadingIndicator.style.display = 'flex';
+
+    // Use a timeout to allow the UI to update and show the loading indicator
+    setTimeout(() => {
+        try {
+            if (chartData.length < 2) {
+                return;
+            }
+
+            const results = [];
+            const regressionTypes = ['linear', 'polynomial', 'logarithmic', 'power', 'exponential', 'theil-sen', 'sigmoidal'];
+            const weightedOptions = [false, true];
+
+            weightedOptions.forEach(isWeighted => {
+                let points = chartData;
+                if (isWeighted) {
+                    const weights = calculateWeights(chartData);
+                    points = chartData.map((p, i) => ({ ...p, weight: weights[i] }));
+                }
+
+                regressionTypes.forEach(type => {
+                    let result;
+                    if (type === 'polynomial') {
+                        for (let degree = 2; degree <= 10; degree++) {
+                            if (points.length > degree) {
+                                result = calculatePolynomialRegression(points, degree);
+                                if (result && isFinite(result.rSquared)) {
+                                    results.push({ type, degree, weighted: isWeighted, rSquared: result.rSquared, equation: result.equation });
+                                }
+                            }
+                        }
+                    } else {
+                        switch (type) {
+                            case 'linear':
+                                result = calculateLinearRegression(points);
+                                break;
+                            case 'logarithmic':
+                                const logPoints = points.filter(p => p.x > 0);
+                                if (logPoints.length >= 2) result = calculateLogarithmicRegression(logPoints);
+                                break;
+                            case 'power':
+                                const powerPoints = points.filter(p => p.x > 0 && p.y > 0);
+                                if (powerPoints.length >= 2) result = calculatePowerRegression(powerPoints);
+                                break;
+                            case 'exponential':
+                                const expPoints = points.filter(p => p.y > 0);
+                                if (expPoints.length >= 2) result = calculateExponentialRegression(expPoints);
+                                break;
+                            case 'theil-sen':
+                                result = calculateTheilSenRegression(points);
+                                break;
+                            case 'sigmoidal':
+                                if (points.length >= 3) result = calculateSigmoidalRegression(points);
+                                break;
+                        }
+                        if (result && isFinite(result.rSquared)) {
+                            results.push({ type, weighted: isWeighted, rSquared: result.rSquared, equation: result.equation });
+                        }
+                    }
+                });
+            });
+
+            if (results.length === 0) {
+                return;
+            }
+
+            results.sort((a, b) => b.rSquared - a.rSquared);
+            console.log("Sorted Results:", JSON.stringify(results, null, 2));
+
+
+            const bestFit = results[0];
+            const secondBestFit = results.length > 1 ? results[1] : null;
+
+            if (secondBestFit && (bestFit.rSquared - secondBestFit.rSquared < 0.05)) {
+                // Tie-breaker
+                const tieBreakerOptions = document.getElementById('tie-breaker-options');
+                tieBreakerOptions.innerHTML = '';
+                const topResults = results.filter(r => bestFit.rSquared - r.rSquared < 0.05);
+
+                topResults.forEach((result, index) => {
+                    const weightedText = result.weighted ? ' (Weighted)' : '';
+                    const degreeText = result.degree ? ` (Degree ${result.degree})` : '';
+                    const label = document.createElement('label');
+                    label.innerHTML = `
+                        <input type="radio" name="tie-breaker" value="${index}" ${index === 0 ? 'checked' : ''}>
+                        <strong>${result.type}${degreeText}${weightedText}</strong><br>
+                        R²: ${result.rSquared.toFixed(4)}<br>
+                        Equation: ${result.equation}
+                    `;
+                    tieBreakerOptions.appendChild(label);
+                });
+                tieBreakerOptions.dataset.results = JSON.stringify(topResults);
+
+
+                document.getElementById('tie-breaker-modal').style.display = 'flex';
+            } else {
+                applyBestFit(bestFit);
+            }
+        } catch (e) {
+            console.error("Error during auto-select:", e);
+        } finally {
+            loadingIndicator.style.display = 'none';
+        }
+    }, 50);
+}
+
     tableBody.addEventListener('click', function(event) {
         if (event.target.classList.contains('delete-point-btn')) {
             const index = parseInt(event.target.getAttribute('data-index'));
             deletePoint(index);
         }
     });
+function applyBestFit(fit) {
+    document.getElementById('regression-type').value = fit.type;
+    document.getElementById('weighted-regression').checked = fit.weighted;
 
-    function autoSelectBestFit() {
-        if (chartData.length < 2) return;
-
-        const results = [];
-        let points;
-
-        // Linear
-        points = chartData;
-        const linearResult = calculateLinearRegression(points);
-        if (linearResult && isFinite(linearResult.rSquared)) {
-            results.push({ type: 'linear', rSquared: linearResult.rSquared });
-        }
-
-        // Polynomial
-        for (let degree = 2; degree <= 5; degree++) {
-            points = chartData;
-            if (points.length > degree) {
-                const polyResult = calculatePolynomialRegression(points, degree);
-                if (polyResult && isFinite(polyResult.rSquared)) {
-                    results.push({ type: 'polynomial', degree: degree, rSquared: polyResult.rSquared });
-                }
-            }
-        }
-
-        // Logarithmic
-        points = chartData.filter(p => p.x > 0);
-        if (points.length >= 2) {
-            const logResult = calculateLogarithmicRegression(points);
-            if (logResult && isFinite(logResult.rSquared)) {
-                results.push({ type: 'logarithmic', rSquared: logResult.rSquared });
-            }
-        }
-
-        // Power
-        points = chartData.filter(p => p.x > 0 && p.y > 0);
-        if (points.length >= 2) {
-            const powerResult = calculatePowerRegression(points);
-            if (powerResult && isFinite(powerResult.rSquared)) {
-                results.push({ type: 'power', rSquared: powerResult.rSquared });
-            }
-        }
-
-        // Exponential
-        points = chartData.filter(p => p.y > 0);
-        if (points.length >= 2) {
-            const expResult = calculateExponentialRegression(points);
-            if (expResult && isFinite(expResult.rSquared)) {
-                results.push({ type: 'exponential', rSquared: expResult.rSquared });
-            }
-        }
-
-        // Theil-Sen
-        points = chartData;
-        const theilSenResult = calculateTheilSenRegression(points);
-        if (theilSenResult && isFinite(theilSenResult.rSquared)) {
-            results.push({ type: 'theil-sen', rSquared: theilSenResult.rSquared });
-        }
-
-        if (results.length === 0) return;
-
-        const bestFit = results.reduce((best, current) => current.rSquared > best.rSquared ? current : best, { rSquared: -Infinity });
-
-        const regressionTypeSelect = document.getElementById("regression-type");
-        regressionTypeSelect.value = bestFit.type;
-        regressionTypeSelect.dispatchEvent(new Event('change'));
-
-        if (bestFit.type === 'polynomial') {
-            document.getElementById('polynomial-degree').value = bestFit.degree;
-        }
-
-        updateLineOfBestFit();
-        saveState();
+    const polyDegreeLabel = document.getElementById("polynomial-degree-label");
+    if (fit.type === 'polynomial') {
+        polyDegreeLabel.style.display = 'block';
+        document.getElementById('polynomial-degree').value = fit.degree;
+    } else {
+        polyDegreeLabel.style.display = 'none';
     }
 
-    document.getElementById("auto-select-best-fit").addEventListener("click", autoSelectBestFit);
+    updateLineOfBestFit();
+    saveState();
+}
+
+document.getElementById("auto-select-best-fit").addEventListener("click", autoSelectBestFit);
+
+// Modal event listeners
+document.querySelector('.close-button').addEventListener('click', () => {
+    document.getElementById('tie-breaker-modal').style.display = 'none';
+});
+
+document.getElementById('apply-tie-breaker').addEventListener('click', () => {
+    const selectedOption = document.querySelector('input[name="tie-breaker"]:checked');
+    if (selectedOption) {
+        const results = JSON.parse(document.getElementById('tie-breaker-options').dataset.results);
+        const selectedResult = results[parseInt(selectedOption.value)];
+        applyBestFit(selectedResult);
+    }
+    document.getElementById('tie-breaker-modal').style.display = 'none';
+});
 
     // Listen for Save CSV button click
     document.getElementById("save-csv").addEventListener("click", function() {

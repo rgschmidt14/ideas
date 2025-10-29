@@ -236,3 +236,93 @@ button:hover {
         padding: 1rem 0;
     }
 }
+
+/* Loading Indicator Styles */
+#loading-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+#loading-indicator p {
+    background-color: var(--primary-container-bg);
+    color: var(--text-color);
+    padding: 20px 40px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    z-index: 1001;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: var(--primary-container-bg);
+    margin: auto;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    width: 80%;
+    max-width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px var(--shadow-color);
+    position: relative;
+}
+
+.close-button {
+    color: var(--text-color);
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-button:hover,
+.close-button:focus {
+    opacity: 0.7;
+    text-decoration: none;
+}
+
+#tie-breaker-options {
+    margin-top: 15px;
+    margin-bottom: 20px;
+}
+
+#tie-breaker-options label {
+    display: block;
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#tie-breaker-options label:hover {
+    background-color: var(--secondary-container-bg);
+}
+
+#tie-breaker-options input[type="radio"] {
+    margin-right: 10px;
+}
+
+#apply-tie-breaker {
+    width: 100%;
+    background-color: var(--accent-color);
+}

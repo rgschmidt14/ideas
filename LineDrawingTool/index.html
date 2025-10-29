@@ -108,7 +108,7 @@
                 </div>
                 <div class="setting-item">
                     <label for="polynomial-degree" id="polynomial-degree-label" style="display: none;">Degree:</label>
-                    <input type="range" id="polynomial-degree" min="2" max="5" step="1" value="2">
+                    <input type="range" id="polynomial-degree" min="2" max="10" step="1" value="2">
                 </div>
                  <div class="setting-item">
                     <label for="point-color">Point Color:</label>
@@ -139,6 +139,23 @@
             </div>
         </aside>
     </main>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" style="display: none;">
+        <p>Calculating best fit...</p>
+    </div>
+
+    <!-- Tie-breaker Modal -->
+    <div id="tie-breaker-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2>Close Results</h2>
+            <p>The following regression models have very similar accuracy. Please select one:</p>
+            <div id="tie-breaker-options"></div>
+            <button id="apply-tie-breaker">Apply Selection</button>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
